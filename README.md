@@ -4,12 +4,14 @@ Code for processing and analyzing resting state EEG data from the CANlab
 
 The main directory for the project looks like this:
 
+```
 luc-stim
 ├───data
 ├───doc
 ├───matlab-toolboxes
 ├───output
 └───src
+```
 
 The contents of this github repo are of `src/`. Therefore, paths are relative to `luc-stim/`
 
