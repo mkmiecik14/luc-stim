@@ -41,7 +41,8 @@ for i = 1:length(ss)
     end
     
     % Extracts resting state blocks ----
-    %EEG = pop_rmdat( EEG, {'101','106','111','116'},[-1 61] ,0);
+    blocks = {'101','103','105','107', '109', '203', '205', '207', '209'};
+    EEG = pop_rmdat( EEG, blocks, [-1 61], 0);
     
     % ICA decomposition ----
     % computes rank from EEG.nbchan( == 30) - n (interpolated chans)
