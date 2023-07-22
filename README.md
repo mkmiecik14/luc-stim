@@ -44,3 +44,9 @@ Running the script `eeg_spect.m` will perform artifact correction by removing IC
 Plots of block-wise broadband frequency and pink/white noise estimation are saved in `output/` for blocks that are available. All results are saved in a matlab structure named `ssnumber-spec-res.mat` for import into R or your favorite analysis software.
 
 Note: for pink and white noise estimation to be reflected in IAF calculations, this script will need to be modified.
+
+## Step 4 - Preprocess MATLAB files to R
+
+The next step is to take the spectral results matlab structure file `ssnumber-spec-res.mat` and get these files ready for statistical processing in R. This is accomplished by `prepro-to-r.R`.
+
+
