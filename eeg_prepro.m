@@ -48,6 +48,24 @@ for i = 1:length(ss)
         'rmchannel',{'EXG1', 'EXG2', 'EXG3','EXG4','EXG5','EXG6','EXG7','EXG8'}...
         );
     
+    % Checks to see if there are more than 64 channels in the recording----
+    % first creates a vector of the chan names 
+    N = 32;
+    A_chans = cell(1, N);
+    B_chans = A_chans;
+    for j=1:N
+        A_chans{j} = strcat('A', num2str(j));
+        B_chans{j} = strcat('B', num2str(j));
+    end
+    chans_to_keep = [A_chans B_chans]; % here is the vector of channel names
+    
+    % keeps these chans only
+    if EEG.nbchan > 64
+        EEG = pop_select(EEG, 'channel', chans_to_keep);
+    else
+        disp('only 64 channels detected; not removing any...');
+    end
+        
     % Configuring channel locations ----
     % loads in ELP
     eloc = readlocs( this_elp ); % reads in elp chan locations
