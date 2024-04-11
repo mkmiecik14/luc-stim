@@ -4,7 +4,7 @@
 
 # Purpose: preliminary viz and analysis of LUC stim data
 
-source("prepro-to-r.r")
+# source("prepro-to-r.r") # not run
 
 # libraries ----
 library(tidyverse)
