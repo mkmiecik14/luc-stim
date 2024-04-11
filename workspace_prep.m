@@ -9,7 +9,7 @@
 %
 
 % Sets working directory ----
-main_dir = 'M:\luc-stim'; % creating the main dir
+main_dir = 'M:\projects\luc-stim'; % creating the main dir
 cd(main_dir); % setting the working directory
 
 % Directory paths ----

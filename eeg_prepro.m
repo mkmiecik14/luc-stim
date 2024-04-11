@@ -2,12 +2,12 @@
 % Matt Kmiecik
 % Started 03 June 2023
 
-workspace_prep % Prepares workspace (see /src)
+workspace_prep % Prepares workspace (see src/)
 
 % Initializes subjects for batch processing (if applicable)
 ss = string({RAW{2:size(RAW,1),1}});
 
-i=1; % for testing purposes
+i=2; % for testing purposes
 
 % Preprocessing ----
 for i = 1:length(ss)
@@ -49,7 +49,7 @@ for i = 1:length(ss)
         );
     
     % Checks to see if there are more than 64 channels in the recording----
-    % first creates a vector of the chan names 
+    % first creates a vector of the chan names   
     N = 32;
     A_chans = cell(1, N);
     B_chans = A_chans;

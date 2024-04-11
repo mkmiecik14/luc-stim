@@ -6,7 +6,7 @@ workspace_prep % Prepares workspace
 
 % Initializes subjects for batch processing (if applicable)
 ss = string({RAW{2:size(RAW,1),1}});
-i=1; % for testing purposes
+i=2; % for testing purposes
 
 for i = 1:length(ss)
     

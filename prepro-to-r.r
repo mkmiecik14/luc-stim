@@ -41,6 +41,11 @@ triggers <-
     task = c("iaf", rep("pre", 4), rep("post", 4))
   )
 
+# stimulation table
+stim_table <- 
+  read_excel("../doc/ss-info.xlsx", sheet = "main") %>%
+  select(ss, session, stim_type, stim_version)
+
 # Reading in and unpacking spectral results ----
 spec_res <- 
   spec_files %>%
@@ -96,7 +101,8 @@ paf_res <-
   pivot_longer(cols = c(-ss, -elec), names_to = "block", values_to = "paf") %>%
   mutate(block = as.numeric(regmatches(block, regexpr("\\d", block)))) %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
-  select(ss, elec, block, eyes, task, paf)
+  left_join(., stim_table, by = "ss") %>%
+  select(ss, session, stim_type, stim_version, elec, block, eyes, task, paf)
 
 # Saving out paf results
 save(paf_res, file = "../output/paf-res.rda")
@@ -116,7 +122,8 @@ cog_res <-
   pivot_longer(cols = c(-ss, -elec), names_to = "block", values_to = "cog") %>%
   mutate(block = as.numeric(regmatches(block, regexpr("\\d", block)))) %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
-  select(ss, elec, block, eyes, task, cog)
+  left_join(., stim_table, by = "ss") %>%
+  select(ss, session, stim_type, stim_version, elec, block, eyes, task, cog)
 
 # Saving out cog results
 save(cog_res, file = "../output/cog-res.rda")
@@ -138,7 +145,8 @@ iaf_res <-
   mutate(ss_i = as.numeric(ss_i)) %>% 
   left_join(., subjs %>% select(ss_i, ss), by = "ss_i") %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
-  select(ss, block, eyes, task, paf, cog)
+  left_join(., stim_table, by = "ss") %>%
+  select(ss, session, stim_type, stim_version, block, eyes, task, paf, cog)
 
 # Saving out iaf results
 save(iaf_res, file = "../output/iaf-res.rda")
@@ -146,10 +154,67 @@ write_csv(iaf_res, file = "../output/iaf-res.csv")
 rm(iaf_res) # removes from memory
 gc() # garbage collection
 
+# PSD data ----
+# Extracting and tidying spectral results
+
+# frequency resolution is determined in MATLAB spectral decomposition scripts
+# so see those scripts for these numbers:
+eeg_srate <- 256 # data sampled at 256 Hz
+fft_window <- 4 # in seconds
+n_points <- eeg_srate*fft_window # number of data points in FFT window
+freq_bins <- eeg_srate/n_points # frequency bins
+
+# defining frequency bands (for later)
+delta <-  seq(.5, 4, freq_bins)
+theta <-  seq(4, 7.5, freq_bins)
+alpha <-  seq(7.5, 13, freq_bins)
+beta <-   seq(13, 30, freq_bins)
+
+# Each participant has:
+# 64 rows (electrodes) * n (depends on frequency bins) * block (rs blocks)
+psd_res <-
+  stim_psd %>%
+  map_dfr(
+    ~bind_rows(apply(.x, 3, as_tibble), .id = "block") %>% 
+      mutate(elec = rep(chan_locs$labels, nrow(triggers))) %>%
+      relocate(elec, .after = block) %>%
+      pivot_longer(c(-block, -elec)) %>%
+      mutate(name = rep(freqs, nrow(triggers)*length(chan_locs$labels))),
+    .id = "ss_i"
+  ) %>%
+  # converts to numeric
+  mutate(
+    ss_i = as.numeric(ss_i),
+    block = as.numeric(block)
+  ) %>% 
+  left_join(., subjs %>% select(ss_i, ss), by = "ss_i") %>% # joins with subject numbers
+  left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
+  left_join(., stim_table, by = "ss") %>%
+  rename(freq = name, psd = value) %>% # renaming
+  # reordering + deselecting (ss_i)
+  select(ss, session, stim_type, stim_version, block, eyes, elec, freq, psd) %>% 
+  # injects frequency band labels here
+  mutate(
+    band = case_when(
+      freq %in% delta ~ "delta",
+      freq %in% theta ~ "theta",
+      freq %in% alpha ~ "alpha",
+      freq %in% beta ~ "beta",
+      TRUE ~ "outside"
+    )
+  )
+
+# Saving out
+save(psd_res, file = "../output/psd-res.rda")
+write_csv(psd_res, file = "../output/iaf-res.csv")
+rm(psd_res) # removes from memory
+gc() # garbage collection
+
 # Cleans workspace objects ----
 rm(
   chan_locs, freqs, i, j, pwn_freqs, spec_files, stim_cog, stim_freqs, 
   stim_freqvec, stim_iaf, stim_paf, stim_psd, stim_psd_cor, stim_spectra, subjs,
-  this_len, triggers
+  this_len, triggers, stim_table, alpha, beta, delta, eeg_srate, fft_window, 
+  freq_bins, n_points, theta
 )
 gc() # garbage collection

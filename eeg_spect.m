@@ -9,8 +9,8 @@ ss = string({RAW{2:size(RAW,1),1}}); % ss strings
 num_iters = length(ss);         % number of participants in this batch
 i=1;                            % for testing purposes
 csd_switch = 0;                 % 1 == CSD will be computed
-plot_switch = 1;                % 1 == PSD plots will be saved
-noise_plot_switch = 1;          % 1 == Pink&White Noise plots saved
+plot_switch = 0;                % 1 == PSD plots will be saved
+noise_plot_switch = 0;          % 1 == Pink&White Noise plots saved
 
 % For spectral decomposition settings
 wsize = 4;      % FFT window size in seconds
