@@ -134,11 +134,12 @@ topo_plot <- function(
       shape = "none", 
       fill = guide_colourbar(
         title.position = "top", 
-        title.hjust = 0.5, 
+        title.hjust = .5, 
         frame.colour = "black", 
         ticks.colour = "black", 
         barwidth = unit(bwidth, "in"),
-        barheight = unit(bheight, "in")
+        barheight = unit(bheight, "in"),
+        theme = theme(legend.title.align = .5)
       )
     ) +
     theme(legend.position = "bottom")
