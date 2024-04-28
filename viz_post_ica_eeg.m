@@ -1,4 +1,4 @@
-function EEG = viz_eeg_post_ica(ss)
+function EEG = vis_post_ica_eeg(ss)
 
 % Function for visualizing EEG signal post ICA
 % Matt Kmiecik
@@ -29,5 +29,8 @@ EEG = pop_icflag(EEG, ...
 % Removes artifactual ICs
 this_reject = find(EEG.reject.gcompreject);
 EEG = pop_subcomp(EEG, this_reject, 0);
+
+% plots
+eegplot(EEG.data, 'spacing', 100, 'winlength', 30, 'events', EEG.event);
 
 end

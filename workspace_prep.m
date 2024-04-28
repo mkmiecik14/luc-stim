@@ -9,7 +9,8 @@
 %
 
 % Sets working directory ----
-main_dir = 'M:\projects\luc-stim'; % creating the main dir
+% creating the main dir 
+main_dir = 'G:\My Drive\Personal\consulting\clients\luc\projects\luc-stim'; 
 cd(main_dir); % setting the working directory
 
 % Directory paths ----
@@ -23,4 +24,6 @@ output_dir = fullfile(main_dir, 'output\'); % creating the output dir
 [NUM,TXT,RAW] = xlsread('doc\ss-info.xlsx');
 
 % Global vars ----
-this_elp = fullfile(data_dir, '142130.elp');
+% I created this montage using the XYZ coordiantes from:
+% https://www.biosemi.com/headcap.htm
+this_elp = 'doc/biosemi-64-xyz.txt'; % used to use: 'data/142130.elp'

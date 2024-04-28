@@ -7,7 +7,7 @@ workspace_prep % Prepares workspace (see src/)
 % Initializes subjects for batch processing (if applicable)
 ss = string({RAW{2:size(RAW,1),1}});
 
-i=2; % for testing purposes
+i=1; % for testing purposes
 
 % Preprocessing ----
 for i = 1:length(ss)
@@ -68,10 +68,15 @@ for i = 1:length(ss)
         
     % Configuring channel locations ----
     % loads in ELP
-    eloc = readlocs( this_elp ); % reads in elp chan locations
-    EEG.chanlocs = eloc(4:67); % adds these except for fiducials
+    %eloc = readlocs( this_elp ); % reads in elp chan locations
+    eloc = readlocs(this_elp, ...
+        'filetype', 'custom', ... % uses custom file I created
+        'skiplines', 1, ... % skips header
+        'format', {'channum','labels','X','Y','Z'});
+    EEG.chanlocs = eloc; % adds chan locs
+    
     % sets A1 as ref because it was chosen upon import
-    EEG = pop_chanedit(EEG, 'setref', {'1:64' 'A1'}); 
+    EEG = pop_chanedit(EEG, 'setref', {'1:64' 'Fp1'}); 
     
     % Downsamples to 256Hz ----
     EEG = pop_resample(EEG, 256);

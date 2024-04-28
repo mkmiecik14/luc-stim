@@ -50,3 +50,6 @@ rsconnect/
 
 # RProj
 *.Rproj
+
+# MATLAB temp files
+*.asv
