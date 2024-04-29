@@ -17,6 +17,9 @@ topo_interp <-
     size = .85,
     elec_loc_path = "../output/chan-locs.rda"
     ){
+    
+    # libraries ----
+    library(akima); library(tidyverse)
   
   # Electrode Locations
   # Loads in electrode positions and converts from polar to cartesian
@@ -33,8 +36,7 @@ topo_interp <-
   data_elecs <- left_join(data, elec_locs, by = c("elec" = "labels"))
   #return(data_elecs)
   
-  # libraries ----
-  library(akima)
+  
   
   # procedure ----
     tmp_topo <- 

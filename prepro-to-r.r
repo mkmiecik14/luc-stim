@@ -14,9 +14,7 @@ library(readxl)
 spec_files <- list.files("../output/", pattern = "*spec-res.mat")
 
 # Loading in channel locations
-chan_locs <- 
-  read_xlsx("../doc/ss-info.xlsx", sheet = "elec") %>%
-  mutate(labels = gsub("'", "", labels)) # removes apostrophe
+chan_locs <- read_xlsx("../doc/ss-info.xlsx", sheet = "biosemi-elec-r")
 
 # saving out channel locations
 save(chan_locs, file = "../output/chan-locs.rda")
@@ -44,7 +42,17 @@ triggers <-
 # stimulation table
 stim_table <- 
   read_excel("../doc/ss-info.xlsx", sheet = "main") %>%
-  select(ss, session, stim_type, stim_version)
+  select(ss, session, stim_type, stim_version) %>%
+  # determines stimulation
+  mutate(
+    stim_type = case_when(
+      stim_type == 1 ~ "tdcs", 
+      stim_type == 3 ~ "tacs", 
+      stim_type == 4 ~ "trns"
+    ),
+    stim = if_else(stim_version == "B", "sham", stim_type),
+    stim = factor(stim), stim = relevel(stim, ref = "sham")
+  ) 
 
 # Reading in and unpacking spectral results ----
 spec_res <- 
@@ -102,7 +110,8 @@ paf_res <-
   mutate(block = as.numeric(regmatches(block, regexpr("\\d", block)))) %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
   left_join(., stim_table, by = "ss") %>%
-  select(ss, session, stim_type, stim_version, elec, block, eyes, task, paf)
+  select(ss, session, stim, elec, block, eyes, task, paf) %>%
+  mutate(ss = sub("\\_.*", "", ss)) # removes session info
 
 # Saving out paf results
 save(paf_res, file = "../output/paf-res.rda")
@@ -123,7 +132,9 @@ cog_res <-
   mutate(block = as.numeric(regmatches(block, regexpr("\\d", block)))) %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
   left_join(., stim_table, by = "ss") %>%
-  select(ss, session, stim_type, stim_version, elec, block, eyes, task, cog)
+  select(ss, session, stim, elec, block, eyes, task, cog) %>%
+  mutate(ss = sub("\\_.*", "", ss)) # removes session info
+  
 
 # Saving out cog results
 save(cog_res, file = "../output/cog-res.rda")
@@ -146,7 +157,8 @@ iaf_res <-
   left_join(., subjs %>% select(ss_i, ss), by = "ss_i") %>%
   left_join(., triggers %>% select(block, eyes, task), by = "block") %>%
   left_join(., stim_table, by = "ss") %>%
-  select(ss, session, stim_type, stim_version, block, eyes, task, paf, cog)
+  select(ss, session, stim, block, eyes, task, paf, cog) %>%
+  mutate(ss = sub("\\_.*", "", ss)) # removes session info
 
 # Saving out iaf results
 save(iaf_res, file = "../output/iaf-res.rda")
@@ -192,7 +204,7 @@ psd_res <-
   left_join(., stim_table, by = "ss") %>%
   rename(freq = name, psd = value) %>% # renaming
   # reordering + deselecting (ss_i)
-  select(ss, session, stim_type, stim_version, block, eyes, elec, freq, psd) %>% 
+  select(ss, session, stim, block, eyes, elec, freq, psd) %>% 
   # injects frequency band labels here
   mutate(
     band = case_when(
@@ -201,7 +213,8 @@ psd_res <-
       freq %in% alpha ~ "alpha",
       freq %in% beta ~ "beta",
       TRUE ~ "outside"
-    )
+    ),
+    ss = sub("\\_.*", "", ss) # removes session info
   )
 
 # Saving out

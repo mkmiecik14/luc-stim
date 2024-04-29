@@ -7,7 +7,7 @@
 # source("prepro-to-r.r") # not run
 
 # libraries ----
-library(tidyverse)
+library(tidyverse); library(scales)
 
 # functions ----
 source("fns/topo_interp.R"); source("fns/topo_plot.R")
@@ -20,20 +20,9 @@ alpha <- seq(8, 12, .25)
 ss <- 
   psd_res %>%
   filter(freq %in% alpha, !is.na(psd)) %>%
-  # determines stimulation
   mutate(
-    stim_type = case_when(
-      stim_type == 1 ~ "tdcs", 
-      stim_type == 3 ~ "tacs", 
-      stim_type == 4 ~ "trns"
-    ),
-    stim = if_else(stim_version == "B", "sham", stim_type),
-    stim = factor(stim), stim = relevel(stim, ref = "sham")
-  ) %>%
-  mutate(
-    block = block - 1, # adjusts as IAF was not collected
-    ss = sub("\\_.*", "", ss),
-    task = if_else(block > 4, "post", "pre")
+    block = block - 1, # adjusts as IAF was not collected,
+    task = if_else(block > 4, "post", "pre") # inserts task
   ) %>%
   # turns certain cols to factors
   mutate(
@@ -54,7 +43,7 @@ ss_sum <-
   summarise(m = mean(psd), n = n()) %>%
   ungroup()
 
-library(scales)
+
 ggplot(ss_sum %>% filter(eyes == "open"), aes(m)) + 
   geom_density() + 
   scale_x_continuous(trans = "log2") +
@@ -97,23 +86,28 @@ study_sum_sub <-
   filter(task == "post") %>% # removes pre as these are the same values as post
   mutate(task = "post > pre") # renames so that task is accurate
 
+## TOPO CONTSTANTS ----
+interp_size <- .67
+nose_adj <- .02
+dia <- 1.45
+
 # interpolates data
 interp <- 
   study_sum %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
   map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = .6), .id = "name"
+    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
   ) %>%
   separate(name, into = c("stim", "eyes", "task")) %>%
   as_tibble() %>%
   mutate(task = factor(task), task = fct_relevel(task, c("pre", "post")))
 
 # interpolates subtraction
-interp_sub <- 
+interp_sub <-
   study_sum_sub %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
   map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = .6), .id = "name"
+    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
   ) %>%
   separate(name, into = c("stim", "eyes", "task"), sep = "\\_") %>%
   as_tibble()
@@ -137,13 +131,14 @@ psd_closed_plot <-
   elec_shapes = 19,
   bwidth = 1.5, # width of colorbar
   bheight = .2, # height of colorbar
-  d = 1.2, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
+  d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
   contour_alpha = 1/3, # alpha level of contour lines
   contour_color = "black", # color of contour lines
   headshape_size = .5, # headshape size
   electrode_size = .5, # size of electrode points
   nose_size = .5, # size of nose shape,
-  nose_adj = -.12, # adjusts position of nose,
+  nose_adj = nose_adj, # adjusts position of nose,
+  size_maskRing = 6,
   legend_name = "PSD (uV^2/Hz)"
 ) + 
   facet_grid(stim~task) +
@@ -152,13 +147,13 @@ psd_closed_plot <-
 psd_closed_plot
 
 # saves out
-ggsave(
-  filename = "../output/psd-closed.png", 
-  width = 6.5, 
-  height = 5.5, 
-  units = "in",
-  bg = "white"
-  )
+# ggsave(
+#   filename = "../output/psd-closed.png", 
+#   width = 6.5, 
+#   height = 5.5, 
+#   units = "in",
+#   bg = "white"
+#   )
 
 # subtraction plot for eyes closed
 this_orig <-  study_sum_sub %>% filter(eyes == "closed")
@@ -179,13 +174,13 @@ psd_closed_sub_plot <-
   elec_shapes = 19,
   bwidth = 1.5, # width of colorbar
   bheight = .2, # height of colorbar
-  d = 1.2, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
+  d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
   contour_alpha = 1/3, # alpha level of contour lines
   contour_color = "black", # color of contour lines
   headshape_size = .5, # headshape size
   electrode_size = .5, # size of electrode points
   nose_size = .5, # size of nose shape,
-  nose_adj = -.12, # adjusts position of nose,
+  nose_adj = nose_adj, # adjusts position of nose,
   legend_name = "PSD Difference \n (uV^2/Hz)"
 ) + 
   facet_grid(stim~task)
@@ -198,11 +193,11 @@ psd_closed_fplot <- psd_closed_plot | psd_closed_sub_plot # final plot
 psd_closed_fplot
 
 # saves out
-ggsave(
-  filename = "../output/psd-closed-all.png", 
-  plot = psd_closed_fplot,
-  width = 7, height = 8, units = "in", bg = "white"
-  )
+# ggsave(
+#   filename = "../output/psd-closed-all.png", 
+#   plot = psd_closed_fplot,
+#   width = 7, height = 8, units = "in", bg = "white"
+#   )
 
 ## eyes open
 this_orig <- study_sum %>% filter(eyes == "open")
@@ -222,13 +217,13 @@ psd_open_plot <-
     elec_shapes = 19,
     bwidth = 1.5, # width of colorbar
     bheight = .2, # height of colorbar
-    d = 1.2, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
+    d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
     contour_alpha = 1/3, # alpha level of contour lines
     contour_color = "black", # color of contour lines
     headshape_size = .5, # headshape size
     electrode_size = .5, # size of electrode points
     nose_size = .5, # size of nose shape,
-    nose_adj = -.12, # adjusts position of nose,
+    nose_adj = nose_adj, # adjusts position of nose,
     legend_name = "PSD (uV^2/Hz)"
     ) + 
   facet_grid(stim~task) +
@@ -236,13 +231,13 @@ psd_open_plot <-
 
 psd_open_plot
 
-ggsave(
-  filename = "../output/psd-open.png", 
-  width = 6.5, 
-  height = 5.5, 
-  units = "in",
-  bg = "white"
-)
+# ggsave(
+#   filename = "../output/psd-open.png", 
+#   width = 6.5, 
+#   height = 5.5, 
+#   units = "in",
+#   bg = "white"
+# )
 
 # subtraction plot for eyes open
 this_orig <-  study_sum_sub %>% filter(eyes == "open")
@@ -263,13 +258,13 @@ psd_open_sub_plot <-
     elec_shapes = 19,
     bwidth = 1.5, # width of colorbar
     bheight = .2, # height of colorbar
-    d = 1.2, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
+    d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
     contour_alpha = 1/3, # alpha level of contour lines
     contour_color = "black", # color of contour lines
     headshape_size = .5, # headshape size
     electrode_size = .5, # size of electrode points
     nose_size = .5, # size of nose shape,
-    nose_adj = -.12, # adjusts position of nose,
+    nose_adj = nose_adj, # adjusts position of nose,
     legend_name = "PSD Difference \n (uV^2/Hz)"
   ) + 
   facet_grid(stim~task)

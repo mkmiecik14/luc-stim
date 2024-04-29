@@ -26,6 +26,7 @@ topo_plot <- function(
     elec_shape_col = NULL,
     elec_shapes = NULL,
     nose_adj = -.1,
+    size_maskRing = 6,
     elec_loc_path = "../output/chan-locs.rda"
     ){
   
@@ -38,7 +39,7 @@ topo_plot <- function(
   elec_locs <- 
     chan_locs %>%
     mutate(
-      radianTheta = pi/180*theta, 
+      radianTheta = pi/180*theta, #radianTheta = pi/180*theta 
       x = radius*sin(radianTheta), 
       y = radius*cos(radianTheta)
     )
@@ -96,6 +97,7 @@ topo_plot <- function(
   #   geom_line(data = nose, aes(x, y, z = NULL)) +
   #   theme_topo() +
   #   coord_equal()
+  
   plot <- 
     ggplot(interp_data, aes(x = x, y = y, fill = {{dv}}, group = 1)) +
     coord_equal() + # equalizes coordinates
@@ -105,8 +107,8 @@ topo_plot <- function(
     geom_path(
       data = maskRing,
       aes(x, y, z = NULL, fill = NULL),
-      colour = "white",
-      size = 6
+      colour = "white", #white
+      size = size_maskRing
     ) +
     theme_topo() + # topo theme is added (white background etc.)
     # plots headshape
