@@ -14,6 +14,13 @@ this_ss_name = this_ss_path.name;
 % Loads in data using EEGLAB ----
 EEG = pop_loadset('filename',this_ss_name,'filepath', this_ss_path.folder);
 
+% fixes channel info/locations so that nose is along Y+ 
+% ( see nose_along_fix.m )
+chan_locs = load("doc/chan_locs_nose_along_fixed.mat");
+chan_info = load("doc/chan_info_nose_along_fixed.mat");
+EEG.chanlocs = chan_locs.chan_locs;
+EEG.chaninfo = chan_info.chan_info;
+
 % Labels ICs for rejection ----
 EEG = pop_iclabel(EEG, 'default');
 EEG = pop_icflag(EEG, ...

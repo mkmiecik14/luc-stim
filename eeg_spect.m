@@ -31,10 +31,17 @@ for i = 1:num_iters
     this_ss = ss(i);
     this_ss_path = dir(fullfile(output_dir, strcat(this_ss, '-ica.set')));
     this_ss_name = this_ss_path.name;
-        
+
     % Loads in data using EEGLAB ----
     EEG = pop_loadset('filename',this_ss_name,'filepath', this_ss_path.folder);
-    
+
+    % fixes channel info/locations so that nose is along Y+ 
+    % ( see nose_along_fix.m )
+    load("doc/chan_locs_nose_along_fixed.mat");
+    load("doc/chan_info_nose_along_fixed.mat");
+    EEG.chanlocs = chan_locs;
+    EEG.chaninfo = chan_info;
+
     % Labels ICs for rejection ----
     EEG = pop_iclabel(EEG, 'default');
     EEG = pop_icflag(EEG, ...
