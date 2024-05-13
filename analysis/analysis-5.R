@@ -142,7 +142,6 @@ study_sum <-
     MOE = qt(.975, df = N - 1) * SEM
   ) %>%
   ungroup()
-
 # interaction plots
 ggplot(
   study_sum %>% filter(eyes == "closed", stim %in% c("sham", "tdcs")), 
@@ -152,6 +151,18 @@ ggplot(
   geom_path() +
   facet_wrap(~elec)
 
+# to get shapes accordingly to p-values
+ests_int <-
+  ests_fixed %>% 
+  filter(grepl("\\:", term)) %>% # filters only interaction
+  mutate(
+    stim = case_when(
+      grepl("tacs", term) ~ "tacs",
+      grepl("tdcs", term) ~ "tdcs",
+      grepl("trns", term) ~ "trns",
+      .default = NA
+    ))
+
 # creates subtraction
 study_sum_sub <- 
   study_sum %>% 
@@ -160,7 +171,8 @@ study_sum_sub <-
   mutate(M = diff(M)) %>% # subtraction
   ungroup() %>%
   filter(task == "post") %>% # removes pre as these are the same values as post
-  mutate(task = "post > pre") # renames so that task is accurate
+  mutate(task = "post > pre") %>% # renames so that task is accurate
+  left_join(., ests_int, by = c("stim", "eyes", "elec"))
 
 ## TOPO CONTSTANTS ----
 interp_size <- .67
@@ -236,15 +248,15 @@ psd_closed_sub_plot <-
     color_pal_limits = c(-5, 5),
     color_pal_breaks = seq(-5, 5, 2.5),
     color_pal = rev(brewer.pal(11, "RdBu")),
-    elec_shape_col = NULL,
-    elec_shapes = 19,
+    elec_shape_col = p.value.sig, # null
+    elec_shapes = c(1, 19), # 19
     bwidth = 1.5, # width of colorbar
     bheight = .2, # height of colorbar
     d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
     contour_alpha = 1/3, # alpha level of contour lines
     contour_color = "black", # color of contour lines
     headshape_size = .5, # headshape size
-    electrode_size = .5, # size of electrode points
+    electrode_size = 1, # size of electrode points
     nose_size = .5, # size of nose shape,
     nose_adj = nose_adj, # adjusts position of nose,
     legend_name = "PSD Difference \n (uV^2/Hz)"
@@ -306,15 +318,15 @@ psd_open_sub_plot <-
     color_pal_limits = c(-4, 4),
     color_pal_breaks = seq(-4, 4, 2),
     color_pal = rev(brewer.pal(11, "RdBu")),
-    elec_shape_col = NULL,
-    elec_shapes = 19,
+    elec_shape_col = p.value.sig,
+    elec_shapes = c(1, 19), #19
     bwidth = 1.5, # width of colorbar
     bheight = .2, # height of colorbar
     d = dia, # diameter of the maskRing = circleFun(diameter = 1.7), # creates the mask
     contour_alpha = 1/3, # alpha level of contour lines
     contour_color = "black", # color of contour lines
     headshape_size = .5, # headshape size
-    electrode_size = .5, # size of electrode points
+    electrode_size = 1, # size of electrode points
     nose_size = .5, # size of nose shape,
     nose_adj = nose_adj, # adjusts position of nose,
     legend_name = "PSD Difference \n (uV^2/Hz)"
