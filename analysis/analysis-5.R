@@ -67,17 +67,14 @@ library(lme4); library(lmerTest); library(broom.mixed) # pkgs
 # modeling
 mod <- 
   ss_r %>% 
-  nest_by(eyes, elec) %>% 
-  mutate(mod1 = list(lmer(m ~ 1 + block + stim*task + (1 | ss), data = data)))
+  nest_by(eyes, elec) %>%
+  mutate(mod1 = list(lmer(m ~ 1 + stim*task + (1 | ss), data = data)))
 
-# model quality
-qqnorm(residuals(mod$mod1[[1]]))
-qqline(residuals(mod$mod1[[1]]), col = 2)
+## model quality
 
-
+# grabs residuals
 mods <- mod$mod1 
 names(mods) <- interaction(mod$eyes, mod$elec)
-
 resids <- 
   mods %>% 
   map(~tibble(resid = residuals(.))) %>% 
@@ -85,17 +82,29 @@ resids <-
   separate(name, into = c("eyes", "elec"))
 
 # QQ plot
+elec_qqplot <- function(df, teyes, velec){
+  p <-
+    ggplot(
+      resids %>% filter(eyes == teyes, elec %in% chan_locs$labels[velec]), 
+      aes(sample = resid)
+    ) + 
+      stat_qq() + 
+      stat_qq_line(color = "red") +
+      theme_bw() +
+      labs(
+        x = "Theoretical Quantiles", 
+        y = "Sample Quantiles", 
+        title = paste0("Eyes ", teyes)
+        ) +
+      facet_wrap(~elec, ncol = 8)
+  return(p)
+}
 
-
-ggplot(
-  resids %>% filter(eyes == "open", elec %in% chan_locs$labels[1:32]), 
-  aes(sample = resid)
-  ) + 
-  stat_qq(size = .75) + 
-  stat_qq_line(color = "red") +
-  theme_bw() +
-  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
-  facet_wrap(~elec)
+# qqplots
+elec_qqplot(df = resids, teyes = "open", velec = 1:32)
+elec_qqplot(df = resids, teyes = "open", velec = 33:64)
+elec_qqplot(df = resids, teyes = "closed", velec = 1:32)
+elec_qqplot(df = resids, teyes = "closed", velec = 33:64)
 
 # omnibus model estimates
 omni <- mod %>% reframe(broom::glance(mod1))
@@ -524,6 +533,19 @@ ggsave(filename = fname, plot = plot1_all)
 
 fname <- paste0("../output/", script, "plot1-drop.png")
 ggsave(filename = fname, plot = plot1_drop)
+
+## qqplots
+ee <- c("open", "closed")
+for (i in 1:length(ee)) {
+  # first half elec
+  pp <- elec_qqplot(df = resids, teyes = ee[i], velec = 1:32)
+  fname <- paste0("../output/", script, "eyes-", ee[i], "-qq-1-32.png")
+  ggsave(filename = fname, plot = pp)
+  # second half elec
+  pp <- elec_qqplot(df = resids, teyes = ee[i], velec = 33:64)
+  fname <- paste0("../output/", script, "eyes-", ee[i], "-qq-33-64.png")
+  ggsave(filename = fname, plot = pp)
+}
 
 ## Fixed effects estimates
 fname <- paste0("../output/", script, "mod-ests-fixed.csv")
