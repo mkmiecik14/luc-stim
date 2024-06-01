@@ -498,7 +498,6 @@ sig_elecs <-
 this_data <-
   study_sum %>% 
   filter(
-    eyes == "closed", 
     stim %in% c("sham", "tdcs"), 
     elec %in% sig_elecs$elec
     )
@@ -507,7 +506,10 @@ this_data <-
 rg <- RColorBrewer::brewer.pal(11, "RdGy")
 pd <- position_dodge(width = .2)
 tdcs_sham_closed_int_plot <-
-  ggplot(this_data, aes(task, M, group = stim, color = stim)) +
+  ggplot(
+    this_data %>% filter(eyes == "closed"), 
+    aes(task, M, group = stim, color = stim)
+    ) +
   geom_point(position = pd) +
   geom_errorbar(aes(ymin = M-SEM, ymax = M+SEM, width = .2), position = pd) +
   geom_path(position = pd) +
@@ -523,6 +525,26 @@ tdcs_sham_closed_int_plot <-
   facet_wrap(~elec)
 tdcs_sham_closed_int_plot
 
+# same plot as above but eyes open
+tdcs_sham_open_int_plot <-
+  ggplot(
+    this_data %>% filter(eyes == "open"), 
+    aes(task, M, group = stim, color = stim)
+  ) +
+  geom_point(position = pd) +
+  geom_errorbar(aes(ymin = M-SEM, ymax = M+SEM, width = .2), position = pd) +
+  geom_path(position = pd) +
+  scale_color_manual(values = c(rg[3], rg[10])) +
+  theme_bw() +
+  coord_cartesian(ylim = c(0, 10)) +
+  labs(
+    x = "Task", 
+    y = "Mean PSD", 
+    title = "tdcs (vs. sham) * Task (pre vs. post) Interaction\nEyes Open"
+  ) +
+  theme(legend.position = "inside", legend.position.inside = c(.85, .25)) +
+  facet_wrap(~elec)
+tdcs_sham_open_int_plot
 
 # Saving ----
 script <- "analysis-5-"
@@ -567,7 +589,11 @@ ggsave(filename = fname, plot = psd_closed_int_plot, bg = "white")
 fname <- paste0("../output/", script, "eyes-open-int-topo.png")
 ggsave(filename = fname, plot = psd_open_int_plot, bg = "white")
 
-## interaction line plot
+## interaction line plot eyes closed
 fname <- paste0("../output/", script, "eyes-closed-tdcs-int-line.png")
 ggsave(filename = fname, plot = tdcs_sham_closed_int_plot)
+
+## interaction line plot eyes open
+fname <- paste0("../output/", script, "eyes-open-tdcs-int-line.png")
+ggsave(filename = fname, plot = tdcs_sham_open_int_plot)
 
