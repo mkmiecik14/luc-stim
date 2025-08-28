@@ -7,6 +7,10 @@ function cfg = config()
 % Usage:
 %   cfg = config();
 %
+% Environment Variables:
+%   LUC_STIM_DATA_PATH - Optional custom data directory path
+%                        If not set, defaults to './data' relative to project
+%
 % Outputs:
 %   cfg - Configuration structure containing all paths, parameters, and data
 %
@@ -29,9 +33,22 @@ function cfg = config()
     % Directory paths
     cfg.paths.main = main_dir;
     cfg.paths.fns = fullfile(main_dir, 'fns');
-    cfg.paths.data = fullfile(main_dir, 'data');
     cfg.paths.doc = fullfile(main_dir, 'doc');
     cfg.paths.output = fullfile(main_dir, 'output');
+    
+    % Data directory - check for custom path via environment variable
+    data_path_env = getenv('LUC_STIM_DATA_PATH');
+    if ~isempty(data_path_env)
+        if exist(data_path_env, 'dir')
+            cfg.paths.data = data_path_env;
+            fprintf('Using custom data directory: %s\n', data_path_env);
+        else
+            warning('Custom data path does not exist: %s\nFalling back to default', data_path_env);
+            cfg.paths.data = fullfile(main_dir, 'data');
+        end
+    else
+        cfg.paths.data = fullfile(main_dir, 'data');
+    end
     
     % Create output subdirectories if they don't exist
     output_subdirs = {'preprocessed', 'ica', 'spectral', 'logs', 'qc'};
@@ -132,6 +149,7 @@ function cfg = config()
     
     fprintf('Configuration completed successfully.\n');
     fprintf('Main directory: %s\n', cfg.paths.main);
+    fprintf('Data directory: %s\n', cfg.paths.data);
     fprintf('Output directory: %s\n', cfg.paths.output);
     
 end
