@@ -349,7 +349,3 @@ quick_plot(study_sum, interp, "tdcs", "closed") # crazy
 quick_plot(study_sum, interp, "trns", "open", 0, 40, seq(0, 40, 10)) # good
 ggsave(filename = "../output/psd-open-trns.png", width = 5, height = 4, units = "in", bg = "white")
 quick_plot(study_sum, interp, "trns", "closed", 0, 40, seq(0, 40, 10)) # good
-
-
-
-

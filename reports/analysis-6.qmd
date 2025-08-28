@@ -1,26 +1,89 @@
-# analysis-5.R
-# Matt Kmiecik
-# Started 05 May 2024
+---
+title: "Analysis 6"
+author: "Matt Kmiecik"
+date: last-modified
+date-format: iso
+format: 
+  pdf:
+    keep-tex: true
+    include-in-header: 
+       text: |
+         \usepackage{fvextra}
+         \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+include-before-body:
+  text: |
+    \RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+      showspaces = false,
+      showtabs = false,
+      breaksymbolleft={},
+      breaklines
+      % Note: setting commandchars=\\\{\} here will cause an error 
+    }
+execute: 
+  freeze: auto
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
 
-# Purpose: analyze the PSD data using linear mixed models after QC
+```{r setup, include=TRUE, warning=FALSE, message=FALSE, warning=FALSE}
+#knitr chunk options for document ----
+knitr::opts_chunk$set(
+  echo = TRUE, warning = FALSE, message = FALSE#, 
+  #cache = TRUE, 
+  #cache.path = here::here("reports", "analysis-6-cache")
+  )
 
 # libraries ----
-library(tidyverse); library(readxl); library(patchwork)
+library(tidyverse); library(readxl); library(DT); library(patchwork)
+library(knitr)
 
-# functions ----
-source("fns/topo_interp.R"); source("fns/topo_plot.R")
+# custom functions ----
+s <- here::here("fns", "custom_datatable.R")
+source(s) # for tables
 
-# data ----
-files <- as.list(dir(path = "../output/", pattern = "*.rda", full.names = TRUE))
-walk(files, ~load(.x, .GlobalEnv)) # loads all files
+s <- here::here("fns", "topo_interp.R")
+source(s)
+
+s <- here::here("fns", "topo_plot.R")
+source(s)
+```
+
+
+## Description
+
+After preprocessing the data in MATLAB, data were brought into R for further visualization. I compared participants' global power estimates across blocks, stimulation type, time (pre vs. post testing), and electrode position. From there, I determined that specific participants' blocks were outliers due to noise that affected the entire montage (mainly from large fluctuations in signal from noisy reference channels.)
+
+The participants and blocks that were removed were:
+
+```{r}
+# loads data ----
+# files <- 
+#   as.list(
+#     dir(
+#       path = here::here("..", "output"), #"../output" 
+#       pattern = "2025\\-03\\-25*.\\.rda", # modify the date here as necessary
+#       full.names = TRUE
+#     )
+#   )
+# walk(files, ~load(.x, .GlobalEnv)) # loads all files
+psd_res <- 
+  readRDS(file = here::here("..", "output", "psd-res-alpha-2025-03-25.rds"))
+load(here::here("..", "output", "chan-locs.rda")) # loads channel locations
 
 # bad data
 bd <-
-  read_excel("../doc/ss-info.xlsx", sheet = "bad_data") %>% 
-  mutate(ss = as.character(ss), session = as.character(session))
+  read_excel(here::here("..", "doc", "ss-info.xlsx"), sheet = "bad_data") %>% 
+  mutate(ss = as.character(ss))
 
+# prints PDF table
+kable(bd, format = "latex", booktabs = TRUE)
+```
+
+```{r}
 # preps data
 alpha <- seq(8, 12, .25) # alpha range
+matt_ss <- as.character(c(1461831842001:1461831842024)) # ss that matt processed
 ss <- 
   psd_res %>%
   filter(freq %in% alpha, !is.na(psd)) %>%
@@ -33,14 +96,21 @@ ss <-
   ungroup() %>%
   left_join(., bd, by = c("ss", "session", "stim", "block", "eyes", "task")) %>%
   filter(is.na(drop)) %>% # drops bad data here
+  # adds column here to see if there is an effect of who proc data
+  mutate(proc = if_else(ss %in% matt_ss, "matt", "students")) %>% 
   # turns certain cols to factors
   mutate(
-    across(.cols = c(eyes, task, stim), .fns = ~factor(.x)),
+    across(.cols = c(eyes, task, stim, proc), .fns = ~factor(.x)),
     eyes = relevel(eyes, ref = "open"), 
     task = relevel(task, ref = "pre"),
-    stim = relevel(stim, ref = "sham")
+    stim = relevel(stim, ref = "sham"),
+    proc = relevel(proc, ref = "matt")
   )
+```
 
+After removing these participants' noisy blocks (across all electrodes), this was the histogram of PSD across electrodes, stimulation conditions, time (pre vs. post), and blocks for all participants:
+
+```{r}
 # consider here replacing values with PSD > certain threshold?
 plot1_all <- 
   ggplot(ss, aes(m)) + 
@@ -48,9 +118,17 @@ plot1_all <-
   labs(x = "PSD", y = "Count", caption = "Bindwidth = 5 PSD.") +
   theme_bw()
 plot1_all
+```
 
-ss %>% filter(m > 100) %>% arrange(-m)
-ss %>% summarise(M = mean(m), sd = sd(m))
+As can be seen, the x-axis trails out to 300,000 PSD due to one-off noisy electrodes from participants. Rather than eliminate a whole block, these random noisy electrodes' signals will be replaced with `NA`. 
+
+After examining this histogram, I determined that any signals after 100 PSD are likely outliers and I replaced them with `NA`.
+
+Here is the resulting histogram of data entered into the modeling:
+
+```{r}
+#ss %>% filter(m > 100) %>% arrange(-m)
+#ss %>% summarise(M = mean(m), sd = sd(m))
 
 # let's try 100 PSD
 ss_r <- ss %>% mutate(m = if_else(m > 100, NA, m)) # replaces outliers with NA
@@ -60,7 +138,22 @@ plot1_drop <-
   labs(x = "PSD", y = "Count", caption = "Bindwidth = 5 PSD.") +
   theme_bw()
 plot1_drop
-  
+```
+
+# Modeling
+
+These data were modeled using a linear mixed model predicting Power Spectral Density (PSD; $\mu  V^2/Hz$ ) as a function of stimulation type (`stim`), task (pre vs. post), and stim\*task interaction. Covarites included effect of `block` and effect of who processed the data `proc` (Matt vs. students). The only random effect was one of intercept (i.e., random effect of subject).
+
+Each electrode (64) and each eyes condition (open and closed) were modeled separately.
+
+How to interpret each coefficient:
+
+* `task` was a 2 level factor with `pre` as the reference group
+* `stim` was a 4 level factor with `sham` as the reference group
+* `proc` was a 2 level factor with `matt` as the reference group
+* `block` was a continuous variable
+
+```{r, fig.height=6}
 # linear mixed modeling ----
 library(lme4); library(lmerTest); library(broom.mixed) # pkgs
 
@@ -68,7 +161,9 @@ library(lme4); library(lmerTest); library(broom.mixed) # pkgs
 mod <- 
   ss_r %>% 
   nest_by(eyes, elec) %>%
-  mutate(mod1 = list(lmer(m ~ 1 + stim*task + (1 | ss), data = data)))
+  mutate(
+    mod1 = list(lmer(m ~ 1 + proc + block + stim*task + (1 | ss), data = data))
+    )
 
 ## model quality
 
@@ -105,7 +200,9 @@ elec_qqplot(df = resids, teyes = "open", velec = 1:32)
 elec_qqplot(df = resids, teyes = "open", velec = 33:64)
 elec_qqplot(df = resids, teyes = "closed", velec = 1:32)
 elec_qqplot(df = resids, teyes = "closed", velec = 33:64)
+```
 
+```{r, fig.height=6}
 # omnibus model estimates
 omni <- mod %>% reframe(broom::glance(mod1))
 
@@ -130,18 +227,39 @@ ests_fixed <-
 # function to help plot fixed effects
 plot_fixed <- function(data, tterm, teyes){
   this_est <- data %>% filter(term == tterm, eyes == teyes)
+  cc <- RColorBrewer::brewer.pal(11, "RdGy")
+  tcols <- c("ns" = cc[7], "p<.05" = cc[3]) 
   this_plot<- 
-    ggplot(this_est, aes(estimate, reorder(elec, estimate), color = p.value.sig)) + 
+    ggplot(
+      this_est, 
+      aes(estimate, reorder(elec, estimate), color = p.value.sig)
+      ) +
+    geom_vline(xintercept = 0, linetype = 2) +
     geom_point() +
-    labs(x = "Estimate", y = "Electrode", title = paste("Term:", tterm, "\nEyes:", teyes)) +
-    theme_bw()
+    geom_errorbarh(
+      aes(xmin = estimate-std.error, xmax = estimate+std.error), 
+      height = .1
+      ) +
+    labs(
+      x = "Estimate", 
+      y = "Electrode", 
+      title = paste("Term:", tterm, "\nEyes:", teyes),
+      caption = "Error bars are SE."
+      ) +
+    scale_color_manual(values = tcols) +
+    theme_classic()
   return(this_plot)
 }
 
-# interaction effects
+# Intercept
 plot_fixed(ests_fixed, "(Intercept)", "open")
 plot_fixed(ests_fixed, "(Intercept)", "closed")
 
+# Who processed the data? matt vs. students
+plot_fixed(ests_fixed, "procstudents", "open")
+plot_fixed(ests_fixed, "procstudents", "closed")
+
+# interaction effects
 plot_fixed(ests_fixed, "stimtacs:taskpost", "open")
 plot_fixed(ests_fixed, "stimtacs:taskpost", "closed")
 
@@ -167,8 +285,9 @@ plot_fixed(ests_fixed, "stimtrns", "open")
 plot_fixed(ests_fixed, "stimtacs", "closed")
 plot_fixed(ests_fixed, "stimtdcs", "closed")
 plot_fixed(ests_fixed, "stimtrns", "closed")
+```
 
-
+```{r, fig.height=6}
 # visualization ----
 
 # first collapse across blocks within pre and post
@@ -192,7 +311,7 @@ study_sum <-
   ) %>%
   ungroup()
 
-# to get shapes accordingly to p-values
+# to get shapes according to p-values
 ests_int <-
   ests_fixed %>% 
   filter(grepl("\\:", term)) %>% # filters only interaction
@@ -225,9 +344,10 @@ dia <- 1.45
 interp <- 
   study_sum %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
-  map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
+  map(
+    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size)
   ) %>%
+  list_rbind(names_to = "name") %>%
   separate(name, into = c("stim", "eyes", "task")) %>%
   as_tibble() %>%
   mutate(task = factor(task), task = fct_relevel(task, c("pre", "post")))
@@ -236,18 +356,19 @@ interp <-
 interp_sub <-
   study_sum_sub %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
-  map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
+  map(
+    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size)
   ) %>%
+  list_rbind(names_to = "name") %>%
   separate(name, into = c("stim", "eyes", "task"), sep = "\\_") %>%
   as_tibble()
 
 # plot eyes closed
 this_orig <- study_sum %>% filter(eyes == "closed")
 this_interp <- interp %>% filter(eyes == "closed")
-this_orig %>% 
-  group_by(stim, eyes, task) %>%
-  summarise(mean = mean(M), min = min(M), max = max(M))
+# this_orig %>% 
+#   group_by(stim, eyes, task) %>%
+#   summarise(mean = mean(M), min = min(M), max = max(M))
 
 psd_closed_plot <- 
   topo_plot(
@@ -274,7 +395,9 @@ psd_closed_plot <-
   labs(title = "Eyes Closed")
 
 psd_closed_plot
+```
 
+```{r, fig.height=6}
 # subtraction plot for eyes closed
 this_orig <-  study_sum_sub %>% filter(eyes == "closed")
 this_interp <-  interp_sub %>% filter(eyes == "closed")
@@ -314,17 +437,17 @@ psd_closed_fplot
 ## eyes open
 this_orig <- study_sum %>% filter(eyes == "open")
 this_interp <-  interp %>% filter(eyes == "open")
-this_orig %>% 
-  group_by(stim, eyes, task) %>%
-  summarise(mean = mean(M), min = min(M), max = max(M))
+# this_orig %>% 
+#   group_by(stim, eyes, task) %>%
+#   summarise(mean = mean(M), min = min(M), max = max(M))
 
 psd_open_plot <- 
   topo_plot(
     orig_data = this_orig, 
     interp_data = this_interp, 
     dv = M,
-    color_pal_limits = c(0, 10),
-    color_pal_breaks = seq(0, 10, 2),
+    color_pal_limits = c(0, 7),
+    color_pal_breaks = seq(0, 7, 1),
     elec_shape_col = NULL,
     elec_shapes = 19,
     bwidth = 1.5, # width of colorbar
@@ -346,17 +469,17 @@ psd_open_plot
 # subtraction plot for eyes open
 this_orig <-  study_sum_sub %>% filter(eyes == "open")
 this_interp <-  interp_sub %>% filter(eyes == "open")
-this_orig %>% 
-  group_by(stim, eyes, task) %>%
-  summarise(mean = mean(M), min = min(M), max = max(M))
+# this_orig %>% 
+#   group_by(stim, eyes, task) %>%
+#   summarise(mean = mean(M), min = min(M), max = max(M))
 
 psd_open_sub_plot <- 
   topo_plot(
     orig_data = this_orig, 
     interp_data = this_interp, 
     dv = M,
-    color_pal_limits = c(-4, 4),
-    color_pal_breaks = seq(-4, 4, 2),
+    color_pal_limits = c(-2, 2),
+    color_pal_breaks = seq(-2, 2, 1),
     color_pal = rev(brewer.pal(11, "RdBu")),
     elec_shape_col = NULL,
     elec_shapes = 19,
@@ -417,9 +540,9 @@ dub_sub_interp <-
 # plotting eyes open interaction
 this_orig <- dub_sub_df %>% filter(eyes == "open")
 this_interp <- dub_sub_interp %>% filter(eyes == "open")
-this_orig %>% 
-  group_by(eyes, stim) %>%
-  summarise(mean = mean(M_sub), min = min(M_sub), max = max(M_sub))
+# this_orig %>% 
+#   group_by(eyes, stim) %>%
+#   summarise(mean = mean(M_sub), min = min(M_sub), max = max(M_sub))
 
 psd_open_int_plot <- 
   topo_plot(
@@ -453,9 +576,9 @@ psd_open_int_plot
 # plotting eyes closed interaction
 this_orig <- dub_sub_df %>% filter(eyes == "closed")
 this_interp <- dub_sub_interp %>% filter(eyes == "closed")
-this_orig %>% 
-  group_by(eyes, stim) %>%
-  summarise(mean = mean(M_sub), min = min(M_sub), max = max(M_sub))
+# this_orig %>% 
+#   group_by(eyes, stim) %>%
+#   summarise(mean = mean(M_sub), min = min(M_sub), max = max(M_sub))
 
 psd_closed_int_plot <- 
   topo_plot(
@@ -485,7 +608,9 @@ psd_closed_int_plot <-
   )
 
 psd_closed_int_plot
+```
 
+```{r, fig.height=6}
 ## line plots to vizualize the tdcs interactions
 # interaction plots
 
@@ -515,17 +640,30 @@ tdcs_sham_closed_int_plot <-
   geom_path(position = pd) +
   scale_color_manual(values = c(rg[3], rg[10])) +
   theme_bw() +
-  coord_cartesian(ylim = c(0, 30)) +
+  #coord_cartesian(ylim = c(0, 30)) +
   labs(
     x = "Task", 
     y = "Mean PSD", 
     title = "tdcs (vs. sham) * Task (pre vs. post) Interaction\nEyes Closed"
     ) +
-  theme(legend.position = "inside", legend.position.inside = c(.85, .25)) +
+  theme(legend.position = "bottom") +
   facet_wrap(~elec)
 tdcs_sham_closed_int_plot
 
 # same plot as above but eyes open
+# grabs significant elecs
+sig_elecs <-  
+  ests_int %>% 
+  filter(eyes == "open", term == "stimtdcs:taskpost", p.value < .05)
+
+# narrows data to plot
+this_data <-
+  study_sum %>% 
+  filter(
+    stim %in% c("sham", "tdcs"), 
+    elec %in% sig_elecs$elec
+    )
+
 tdcs_sham_open_int_plot <-
   ggplot(
     this_data %>% filter(eyes == "open"), 
@@ -536,24 +674,105 @@ tdcs_sham_open_int_plot <-
   geom_path(position = pd) +
   scale_color_manual(values = c(rg[3], rg[10])) +
   theme_bw() +
-  coord_cartesian(ylim = c(0, 10)) +
+  #coord_cartesian(ylim = c(0, 10)) +
   labs(
     x = "Task", 
     y = "Mean PSD", 
     title = "tdcs (vs. sham) * Task (pre vs. post) Interaction\nEyes Open"
   ) +
-  theme(legend.position = "inside", legend.position.inside = c(.85, .25)) +
+  theme(legend.position = "bottom") +
   facet_wrap(~elec)
 tdcs_sham_open_int_plot
+```
 
+```{r, fig.height=6}
+# grabs significant elecs
+sig_elecs <-  
+  ests_int %>% 
+  filter(eyes == "open", term == "stimtacs:taskpost", p.value < .05)
+
+# narrows data to plot
+this_data <-
+  study_sum %>% 
+  filter(
+    stim %in% c("sham", "tacs"), 
+    elec %in% sig_elecs$elec
+    )
+
+# plots tdcs * sham interaction 
+rg <- RColorBrewer::brewer.pal(11, "RdGy")
+pd <- position_dodge(width = .2)
+tdcs_sham_closed_int_plot <-
+  ggplot(
+    this_data %>% filter(eyes == "open"), 
+    aes(task, M, group = stim, color = stim)
+    ) +
+  geom_point(position = pd) +
+  geom_errorbar(aes(ymin = M-SEM, ymax = M+SEM, width = .2), position = pd) +
+  geom_path(position = pd) +
+  scale_color_manual(values = c(rg[3], rg[10])) +
+  theme_bw() +
+  #coord_cartesian(ylim = c(0, 30)) +
+  labs(
+    x = "Task", 
+    y = "Mean PSD", 
+    title = "tacs (vs. sham) * Task (pre vs. post) Interaction\nEyes Open"
+    ) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~elec)
+tdcs_sham_closed_int_plot
+
+## same plot as above but eyes closed
+# grabs significant elecs
+sig_elecs <-  
+  ests_int %>% 
+  filter(eyes == "closed", term == "stimtacs:taskpost", p.value < .05)
+
+# narrows data to plot
+this_data <-
+  study_sum %>% 
+  filter(
+    stim %in% c("sham", "tacs"), 
+    elec %in% sig_elecs$elec
+    )
+
+# plots tdcs * sham interaction 
+rg <- RColorBrewer::brewer.pal(11, "RdGy")
+pd <- position_dodge(width = .2)
+tdcs_sham_closed_int_plot <-
+  ggplot(
+    this_data %>% filter(eyes == "closed"), 
+    aes(task, M, group = stim, color = stim)
+    ) +
+  geom_point(position = pd) +
+  geom_errorbar(aes(ymin = M-SEM, ymax = M+SEM, width = .2), position = pd) +
+  geom_path(position = pd) +
+  scale_color_manual(values = c(rg[3], rg[10])) +
+  theme_bw() +
+  #coord_cartesian(ylim = c(0, 30)) +
+  labs(
+    x = "Task", 
+    y = "Mean PSD", 
+    title = "tacs (vs. sham) * Task (pre vs. post) Interaction\nEyes Closed"
+    ) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~elec)
+tdcs_sham_closed_int_plot
+```
+
+
+
+```{r}
 # Saving ----
-script <- "analysis-5-"
+script <- "analysis-6-"
 
 ## Plot 1
-fname <- paste0("../output/", script, "plot1-all.png")
+fname <- 
+  here::here("reports", "analysis-6-cache", paste0(script, "plot1-all.png"))
 ggsave(filename = fname, plot = plot1_all)
 
-fname <- paste0("../output/", script, "plot1-drop.png")
+fname <- 
+  here::here("reports", "analysis-6-cache", paste0(script, "plot1-drop.png"))
 ggsave(filename = fname, plot = plot1_drop)
 
 ## qqplots
@@ -561,38 +780,64 @@ ee <- c("open", "closed")
 for (i in 1:length(ee)) {
   # first half elec
   pp <- elec_qqplot(df = resids, teyes = ee[i], velec = 1:32)
-  fname <- paste0("../output/", script, "eyes-", ee[i], "-qq-1-32.png")
-  ggsave(filename = fname, plot = pp)
+  fname <- paste0(script, "eyes-", ee[i], "-qq-1-32.png")
+  ggsave(filename = here::here("reports", "analysis-6-cache", fname), plot = pp)
   # second half elec
   pp <- elec_qqplot(df = resids, teyes = ee[i], velec = 33:64)
-  fname <- paste0("../output/", script, "eyes-", ee[i], "-qq-33-64.png")
-  ggsave(filename = fname, plot = pp)
+  fname <- paste0(script, "eyes-", ee[i], "-qq-33-64.png")
+  ggsave(filename = here::here("reports", "analysis-6-cache", fname), plot = pp)
 }
 
 ## Fixed effects estimates
-fname <- paste0("../output/", script, "mod-ests-fixed.csv")
-write_csv(ests_fixed, file = fname)
+fname <- paste0(script, "mod-ests-fixed.csv")
+write_csv(ests_fixed, file = here::here("reports", "analysis-6-cache", fname))
 
 ## PSD Eyes Closed Averages
-fname <- paste0("../output/", script, "eyes-closed.png")
-ggsave(filename = fname, plot = psd_closed_fplot, bg = "white")
+fname <- paste0(script, "eyes-closed.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = psd_closed_fplot, 
+  bg = "white"
+  )
 
 ## PSD Eyes Open Averages
-fname <- paste0("../output/", script, "eyes-open.png")
-ggsave(filename = fname, plot = psd_open_fplot, bg = "white")
+fname <- paste0(script, "eyes-open.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = psd_open_fplot, 
+  bg = "white"
+  )
 
 ## Interaction plot eyes closed
-fname <- paste0("../output/", script, "eyes-closed-int-topo.png")
-ggsave(filename = fname, plot = psd_closed_int_plot, bg = "white")
+fname <- paste0(script, "eyes-closed-int-topo.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = psd_closed_int_plot, 
+  bg = "white"
+  )
 
 ## Interaction plot eyes closed
-fname <- paste0("../output/", script, "eyes-open-int-topo.png")
-ggsave(filename = fname, plot = psd_open_int_plot, bg = "white")
+fname <- paste0(script, "eyes-open-int-topo.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = psd_open_int_plot, 
+  bg = "white"
+  )
 
 ## interaction line plot eyes closed
-fname <- paste0("../output/", script, "eyes-closed-tdcs-int-line.png")
-ggsave(filename = fname, plot = tdcs_sham_closed_int_plot)
+fname <- paste0(script, "eyes-closed-tdcs-int-line.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = tdcs_sham_closed_int_plot
+  )
 
 ## interaction line plot eyes open
-fname <- paste0("../output/", script, "eyes-open-tdcs-int-line.png")
-ggsave(filename = fname, plot = tdcs_sham_open_int_plot)
+fname <- paste0(script, "eyes-open-tdcs-int-line.png")
+ggsave(
+  filename = here::here("reports", "analysis-6-cache", fname), 
+  plot = tdcs_sham_open_int_plot
+  )
+```
+
+
+

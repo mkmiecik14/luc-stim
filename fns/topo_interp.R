@@ -15,7 +15,7 @@ topo_interp <-
     meas = "value", 
     gridRes = 67, 
     size = .85,
-    elec_loc_path = "../output/chan-locs.rda"
+    elec_loc_path = here::here("..", "output", "chan-locs.rda")
     ){
     
     # libraries ----

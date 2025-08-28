@@ -11,8 +11,16 @@ library(tidyverse)
 source("fns/topo_interp.R"); source("fns/topo_plot.R")
 
 # data ----
-files <- as.list(dir(path = "../output/", pattern = "*.rda", full.names = TRUE))
+files <- 
+  as.list(
+    dir(
+      path = "../output", 
+      pattern = "2025\\-03\\-22*.\\.rda", # modify the date here as necessary
+      full.names = TRUE
+      )
+    )
 walk(files, ~load(.x, .GlobalEnv)) # loads all files
+load("../output/chan-locs.rda")
 
 # bad data
 library(readxl)
@@ -29,6 +37,13 @@ ss <-
     block = block - 1, # adjusts as IAF was not collected,
     task = if_else(block > 4, "post", "pre") # inserts task
   ) %>%
+  # fixes naming issue:
+  mutate(ss = case_when(
+    ss == "1461832050" ~ "1461831842050",
+    ss == "1461842050" ~ "1461831842050",
+    .default = ss
+    )
+    ) %>%
   # turns certain cols to factors
   mutate(
     across(.cols = c(eyes, task), .fns = ~factor(.x)),
@@ -49,5 +64,20 @@ ggplot(this_data, aes(m)) + geom_histogram(binwidth = 1)
 
 ggplot(this_data, aes(stim, m)) + geom_boxplot() + facet_wrap(~elec)
 
-this_data %>% filter(m > 50) %>% count(ss, session, stim)
+this_data %>% filter(m > 50) %>% count(ss, session, stim) %>% View()
 this_data %>% filter(m > 100)
+
+this_ss <- "1461831842050"
+this_data <- ss %>% filter(ss %in% this_ss) %>% mutate(m = if_else(m > 100, NA, m))
+ggplot(this_data, aes(m)) + geom_histogram(binwidth = 1) + facet_wrap(~block, scales = "free")
+ggplot(this_data, aes(factor(block), m)) + 
+  geom_boxplot() +
+  facet_wrap(~stim)
+
+# taking a look at raw data
+this_data %>% filter(is.na(m)) %>% View()
+ss$ss %>% unique()
+
+#* Problematic subjects
+#* throw out 2050 for now
+#* and fix the naming of 2050 in the prepro script

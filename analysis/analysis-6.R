@@ -1,8 +1,10 @@
-# analysis-5.R
+# analysis-6.R
 # Matt Kmiecik
-# Started 05 May 2024
+# Started 23 March 2025
 
 # Purpose: analyze the PSD data using linear mixed models after QC
+# Notes: this script was a copy/paste of analysis-5.R; it includes an additional
+# 24 participants
 
 # libraries ----
 library(tidyverse); library(readxl); library(patchwork)
@@ -11,16 +13,25 @@ library(tidyverse); library(readxl); library(patchwork)
 source("fns/topo_interp.R"); source("fns/topo_plot.R")
 
 # data ----
-files <- as.list(dir(path = "../output/", pattern = "*.rda", full.names = TRUE))
+files <- 
+  as.list(
+    dir(
+      path = "../output", 
+      pattern = "2025\\-03\\-25*.\\.rda", # modify the date here as necessary
+      full.names = TRUE
+    )
+  )
 walk(files, ~load(.x, .GlobalEnv)) # loads all files
+load("../output/chan-locs.rda")
 
 # bad data
 bd <-
   read_excel("../doc/ss-info.xlsx", sheet = "bad_data") %>% 
-  mutate(ss = as.character(ss), session = as.character(session))
+  mutate(ss = as.character(ss))
 
 # preps data
 alpha <- seq(8, 12, .25) # alpha range
+matt_ss <- as.character(c(1461831842001:1461831842024))
 ss <- 
   psd_res %>%
   filter(freq %in% alpha, !is.na(psd)) %>%
@@ -33,12 +44,15 @@ ss <-
   ungroup() %>%
   left_join(., bd, by = c("ss", "session", "stim", "block", "eyes", "task")) %>%
   filter(is.na(drop)) %>% # drops bad data here
+  # adds column here to see if there is an effect of who proc data
+  mutate(proc = if_else(ss %in% matt_ss, "matt", "students")) %>% 
   # turns certain cols to factors
   mutate(
-    across(.cols = c(eyes, task, stim), .fns = ~factor(.x)),
+    across(.cols = c(eyes, task, stim, proc), .fns = ~factor(.x)),
     eyes = relevel(eyes, ref = "open"), 
     task = relevel(task, ref = "pre"),
-    stim = relevel(stim, ref = "sham")
+    stim = relevel(stim, ref = "sham"),
+    proc = relevel(proc, ref = "matt")
   )
 
 # consider here replacing values with PSD > certain threshold?
@@ -68,7 +82,7 @@ library(lme4); library(lmerTest); library(broom.mixed) # pkgs
 mod <- 
   ss_r %>% 
   nest_by(eyes, elec) %>%
-  mutate(mod1 = list(lmer(m ~ 1 + stim*task + (1 | ss), data = data)))
+  mutate(mod1 = list(lmer(m ~ 1 + proc + block + stim*task + (1 | ss), data = data)))
 
 ## model quality
 
@@ -138,10 +152,15 @@ plot_fixed <- function(data, tterm, teyes){
   return(this_plot)
 }
 
-# interaction effects
+# Intercept
 plot_fixed(ests_fixed, "(Intercept)", "open")
 plot_fixed(ests_fixed, "(Intercept)", "closed")
 
+# Who processed the data? matt vs. students
+plot_fixed(ests_fixed, "procstudents", "open")
+plot_fixed(ests_fixed, "procstudents", "closed")
+
+# interaction effects
 plot_fixed(ests_fixed, "stimtacs:taskpost", "open")
 plot_fixed(ests_fixed, "stimtacs:taskpost", "closed")
 
@@ -192,7 +211,7 @@ study_sum <-
   ) %>%
   ungroup()
 
-# to get shapes accordingly to p-values
+# to get shapes according to p-values
 ests_int <-
   ests_fixed %>% 
   filter(grepl("\\:", term)) %>% # filters only interaction
@@ -323,8 +342,8 @@ psd_open_plot <-
     orig_data = this_orig, 
     interp_data = this_interp, 
     dv = M,
-    color_pal_limits = c(0, 10),
-    color_pal_breaks = seq(0, 10, 2),
+    color_pal_limits = c(0, 7),
+    color_pal_breaks = seq(0, 7, 1),
     elec_shape_col = NULL,
     elec_shapes = 19,
     bwidth = 1.5, # width of colorbar
@@ -355,8 +374,8 @@ psd_open_sub_plot <-
     orig_data = this_orig, 
     interp_data = this_interp, 
     dv = M,
-    color_pal_limits = c(-4, 4),
-    color_pal_breaks = seq(-4, 4, 2),
+    color_pal_limits = c(-2, 2),
+    color_pal_breaks = seq(-2, 2, 1),
     color_pal = rev(brewer.pal(11, "RdBu")),
     elec_shape_col = NULL,
     elec_shapes = 19,
@@ -547,7 +566,7 @@ tdcs_sham_open_int_plot <-
 tdcs_sham_open_int_plot
 
 # Saving ----
-script <- "analysis-5-"
+script <- "analysis-6-"
 
 ## Plot 1
 fname <- paste0("../output/", script, "plot1-all.png")
@@ -596,3 +615,4 @@ ggsave(filename = fname, plot = tdcs_sham_closed_int_plot)
 ## interaction line plot eyes open
 fname <- paste0("../output/", script, "eyes-open-tdcs-int-line.png")
 ggsave(filename = fname, plot = tdcs_sham_open_int_plot)
+

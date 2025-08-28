@@ -53,3 +53,22 @@ rsconnect/
 
 # MATLAB temp files
 *.asv
+
+# MACOS
+.DS_Store
+
+# CLAUDE
+CLAUDE.md
+
+# FILES
+*.pdf
+*.csv
+*.xlsx
+*.png
+*.rds
+*.rda
+*.tex
+
+# DIRECTORES
+doc/
+data/

@@ -27,7 +27,7 @@ topo_plot <- function(
     elec_shapes = NULL,
     nose_adj = -.1,
     size_maskRing = 6,
-    elec_loc_path = "../output/chan-locs.rda"
+    elec_loc_path = here::here("..", "output", "chan-locs.rda")
     ){
   
   library(dplyr); library(ggplot2); library(RColorBrewer); library(scales)
