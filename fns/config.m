@@ -68,10 +68,10 @@ function cfg = config()
     cfg.params.wsize = 4;                    % FFT window size (seconds)
     cfg.params.overlap = 2;                  % FFT overlap (seconds)
     
-    % Bad channel detection parameters
-    cfg.params.bad_chan.var_thresh = 3;      % Variance threshold (SD)
-    cfg.params.bad_chan.corr_thresh = 0.3;   % Correlation threshold
-    cfg.params.bad_chan.hf_thresh = 2;       % High-frequency noise threshold
+    % Bad channel detection parameters (EEGLAB pop_clean_rawdata)
+    cfg.params.bad_chan.FlatlineCriterion = 5;    % Channel: flat channels
+    cfg.params.bad_chan.ChannelCriterion = 0.8;   % Channel: correlation-based
+    cfg.params.bad_chan.LineNoiseCriterion = 4;   % Channel: line noise
     
     % ICA parameters
     cfg.params.ica.muscle_thresh = 0.8;      % Muscle IC rejection threshold

@@ -1,3 +1,4 @@
+
 function [success, EEG] = apply_ica(subject_id, cfg)
 % APPLY_ICA - Remove bad channels, apply ICA, and reject artifactual components
 %
@@ -51,9 +52,9 @@ function [success, EEG] = apply_ica(subject_id, cfg)
         orig_labels = {EEG.chanlocs.labels};
         
         EEG = pop_clean_rawdata(EEG, ...
-            'FlatlineCriterion', 5, ...           % Channel: flat channels
-            'ChannelCriterion', 0.8, ...          % Channel: correlation-based
-            'LineNoiseCriterion', 4, ...          % Channel: line noise
+            'FlatlineCriterion', cfg.params.bad_chan.FlatlineCriterion, ...     % Channel: flat channels
+            'ChannelCriterion', cfg.params.bad_chan.ChannelCriterion, ...       % Channel: correlation-based
+            'LineNoiseCriterion', cfg.params.bad_chan.LineNoiseCriterion, ...   % Channel: line noise
             'Highpass', 'off', ...                % No filtering
             'BurstCriterion', 'off', ...          % No burst detection  
             'WindowCriterion', 'off', ...         % No window rejection
@@ -82,8 +83,10 @@ function [success, EEG] = apply_ica(subject_id, cfg)
     
         % Run ICA decomposition
         fprintf('Running ICA decomposition...\n');
-        EEG = pop_runica(EEG,'icatype', 'runica','extended',1, ...
-            'interrupt','on','pca',ica_rank);
+        EEG = pop_runamica(EEG, 'pcakeep', ica_rank);
+        
+        %EEG = pop_runica(EEG,'icatype', 'runica','extended',1, ...
+        %    'interrupt','on','pca',ica_rank);
         
         fprintf('ICA decomposition completed: %d components\n', size(EEG.icaweights, 1));
         
