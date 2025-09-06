@@ -69,6 +69,7 @@ CLAUDE.md
 *.rda
 *.tex
 *.fdt
+TODOLIST.txt
 
 # DIRECTORES
 doc/
