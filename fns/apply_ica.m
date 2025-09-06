@@ -83,7 +83,7 @@ function [success, EEG] = apply_ica(subject_id, cfg)
     
         % Run ICA decomposition
         fprintf('Running ICA decomposition...\n');
-        EEG = pop_runamica(EEG, 'pcakeep', ica_rank);
+        EEG = pop_runamica(EEG, 'pcakeep', ica_rank, 'outdir', cfg.params.ica.amica_path);
         
         %EEG = pop_runica(EEG,'icatype', 'runica','extended',1, ...
         %    'interrupt','on','pca',ica_rank);

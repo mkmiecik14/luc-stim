@@ -68,6 +68,7 @@ CLAUDE.md
 *.rds
 *.rda
 *.tex
+*.fdt
 
 # DIRECTORES
 doc/

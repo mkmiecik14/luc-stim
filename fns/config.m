@@ -51,7 +51,7 @@ function cfg = config()
     end
     
     % Create output subdirectories if they don't exist
-    output_subdirs = {'preprocessed', 'ica', 'spectral', 'logs', 'qc'};
+    output_subdirs = {'preprocessed', 'ica', 'spectral', 'logs', 'qc', 'amica'};
     for i = 1:length(output_subdirs)
         subdir_path = fullfile(cfg.paths.output, output_subdirs{i});
         if ~exist(subdir_path, 'dir')
@@ -77,6 +77,7 @@ function cfg = config()
     cfg.params.ica.muscle_thresh = 0.8;      % Muscle IC rejection threshold
     cfg.params.ica.eye_thresh = 0.8;         % Eye IC rejection threshold
     cfg.params.ica.extended = 1;             % Extended ICA
+    cfg.params.ica.amica_path = fullfile(main_dir, 'output', 'amica');
     
     % Spectral analysis parameters
     cfg.params.spectral.frange = [1 40];     % Frequency range for analysis
