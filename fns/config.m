@@ -81,15 +81,14 @@ function cfg = config()
     
     % Spectral analysis parameters
     cfg.params.spectral.frange = [1 40];     % Frequency range for analysis
-    cfg.params.spectral.alpha_window = [7.5 13]; % Alpha peak search window
+    cfg.params.spectral.alpha_window = [6 15]; % Alpha peak search window
     cfg.params.spectral.cmin = 3;            % Min channels for cross-channel avg
     cfg.params.spectral.fw = 23;             % SGF frame width
     cfg.params.spectral.poly = 5;            % SGF polynomial order
     
     % Resting state block definitions
-    cfg.blocks.names = {'101','103','105','107', '109', '203', '205', '207', '209'};
+    cfg.blocks.names = {'103','105','107', '109', '203', '205', '207', '209'};
     cfg.blocks.descriptions = { ...
-        'eyes open 182_IAF', ...
         'eyes open 183_PRE_RS', ... 
         'eyes closed 183_PRE_RS', ...
         'eyes open 183_PRE_RS', ...
