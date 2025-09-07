@@ -65,9 +65,14 @@ function [success, spec_results] = spectral_analysis(subject_id, cfg)
     % Initialize output structure
     spec_results = struct();
     spec_results.subject_id = subject_id;
-    spec_results.timestamp = datetime('now');
-    spec_results.parameters = struct('wsize', wsize, 'overlap', overlap, 'frange', frange, ...
-                                   'alpha_window', alpha_window, 'cmin', cmin, 'fw', fw, 'poly', poly);
+    %spec_results.timestamp = datetime('now');
+    spec_results.param_wsize = wsize;
+    spec_results.param_overlap = overlap;
+    spec_results.param_frange = frange;
+    spec_results.param_alpha_window = alpha_window;
+    spec_results.param_cmin = cmin;
+    spec_results.param_fw = fw;
+    spec_results.param_poly = poly;
     spec_results.block_names = block_names;
     spec_results.block_descriptions = block_descriptions;
     
@@ -316,26 +321,19 @@ function [success, spec_results] = spectral_analysis(subject_id, cfg)
         n_successful_blocks = sum(~isnan(squeeze(spectra_db(1,1,:))));  % Count non-NaN blocks
         mean_psd_power = nanmean(spectra_psd(:), 'all');
         
-        % Store metadata
-        spec_results.metadata = struct();
-        
-        % Channel information
-        spec_results.metadata.original_channels = orig_n_chans;
-        spec_results.metadata.final_channels = n_chans;
-        spec_results.metadata.channels_before_interp = channels_before_interp;
-        spec_results.metadata.channels_after_interp = channels_after_interp;
-        
-        % IC rejection information
-        spec_results.metadata.rejected_ics = rejected_ics;
-        spec_results.metadata.rejected_ic_labels = rejected_ic_labels;
-        
-        % Processing statistics
-        spec_results.metadata.n_blocks_requested = n_blocks;
-        spec_results.metadata.n_blocks_processed = n_successful_blocks;
-        spec_results.metadata.n_frequency_bins = size(freqs, 1);
-        spec_results.metadata.frequency_resolution = freqs(2,1) - freqs(1,1);  % Hz per bin
-        spec_results.metadata.mean_psd_power = mean_psd_power;
-        spec_results.metadata.processing_complete = datetime('now');
+        % Store metadata as flat fields
+        spec_results.meta_original_channels = orig_n_chans;
+        spec_results.meta_final_channels = n_chans;
+        spec_results.meta_channels_before_interp = channels_before_interp;
+        spec_results.meta_channels_after_interp = channels_after_interp;
+        spec_results.meta_rejected_ics = rejected_ics;
+        spec_results.meta_rejected_ic_labels = rejected_ic_labels;
+        spec_results.meta_n_blocks_requested = n_blocks;
+        spec_results.meta_n_blocks_processed = n_successful_blocks;
+        spec_results.meta_n_frequency_bins = size(freqs, 1);
+        spec_results.meta_frequency_resolution = freqs(2,1) - freqs(1,1);  % Hz per bin
+        spec_results.meta_mean_psd_power = mean_psd_power;
+        spec_results.meta_processing_complete = posixtime(datetime('now'));
         
         % 9. Save spectral results to output/spectral directory
         fprintf('Saving spectral analysis results for subject %s...\n', subject_id);
@@ -351,7 +349,7 @@ function [success, spec_results] = spectral_analysis(subject_id, cfg)
         fprintf('\nSpectral analysis completed for subject %s:\n', subject_id);
         fprintf('  Original channels: %d, Final channels: %d\n', orig_n_chans, n_chans);
         fprintf('  Blocks processed: %d/%d\n', n_successful_blocks, n_blocks);
-        fprintf('  Frequency bins: %d (%.3f Hz resolution)\n', size(freqs, 1), spec_results.metadata.frequency_resolution);
+        fprintf('  Frequency bins: %d (%.3f Hz resolution)\n', size(freqs, 1), spec_results.meta_frequency_resolution);
         fprintf('  Mean PSD power: %.2e μV²/Hz\n', mean_psd_power);
         fprintf('Spectral analysis processing completed successfully.\n');
         
