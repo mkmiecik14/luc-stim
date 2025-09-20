@@ -20,32 +20,63 @@ function EEG = load_raw_eeg(subject_id, cfg)
 
     fprintf('Loading raw EEG data for subject %s...\n', subject_id);
     
-    % Find BDF file
+    % Find BDF file first
     bdf_pattern = fullfile(cfg.paths.data, sprintf('%s.bdf', subject_id));
     bdf_files = dir(bdf_pattern);
-    
-    if isempty(bdf_files)
-        error('BDF file not found for subject %s in %s', subject_id, cfg.paths.data);
-    elseif length(bdf_files) > 1
-        warning('Multiple BDF files found for subject %s. Using first match.', subject_id);
-    end
-    
-    bdf_file = fullfile(bdf_files(1).folder, bdf_files(1).name);
-    fprintf('Found BDF file: %s\n', bdf_files(1).name);
-    
-    % Load raw data using biosemi import
-    try
-        EEG = pop_biosig(...
-            bdf_file,...
-            'ref', [1], ...
-            'refoptions', {'keepref','on'},...
-            'importannot', 'off',... % does not import EDF annotations
-            'bdfeventmode', 6 ...     % event mode that syncs with EMSE events
-        );
-        fprintf('Successfully loaded BDF file: %d channels, %d samples, %.1f Hz\n', ...
-                EEG.nbchan, EEG.pnts, EEG.srate);
-    catch ME
-        error('Failed to load BDF file: %s', ME.message);
+
+    if ~isempty(bdf_files)
+        % BDF file found - use existing logic
+        if length(bdf_files) > 1
+            error('Multiple BDF files found for subject %s. Expected exactly one file matching pattern: %s', subject_id, bdf_pattern);
+        end
+
+        bdf_file = fullfile(bdf_files(1).folder, bdf_files(1).name);
+        fprintf('Found BDF file: %s\n', bdf_files(1).name);
+
+        % Load raw data using biosemi import
+        try
+            EEG = pop_biosig(...
+                bdf_file,...
+                'ref', [1], ...
+                'refoptions', {'keepref','on'},...
+                'importannot', 'off',... % does not import EDF annotations
+                'bdfeventmode', 6 ...     % event mode that syncs with EMSE events
+            );
+            fprintf('Successfully loaded BDF file: %d channels, %d samples, %.1f Hz\n', ...
+                    EEG.nbchan, EEG.pnts, EEG.srate);
+        catch ME
+            error('Failed to load BDF file: %s', ME.message);
+        end
+
+    else
+        % BDF not found - check for stitched file in output/raw-data
+        stitched_pattern = fullfile(cfg.paths.output, 'raw-data', sprintf('%s.set', subject_id));
+        stitched_files = dir(stitched_pattern);
+
+        if ~isempty(stitched_files)
+            % Stitched file found
+            if length(stitched_files) > 1
+                error('Multiple stitched files found for subject %s. Expected exactly one file matching pattern: %s', subject_id, stitched_pattern);
+            end
+
+            stitched_file = fullfile(stitched_files(1).folder, stitched_files(1).name);
+            fprintf('BDF not found, using stitched file: %s\n', stitched_files(1).name);
+
+            % Load stitched data using EEGLAB import
+            try
+                EEG = pop_loadset('filename', stitched_files(1).name, ...
+                                 'filepath', stitched_files(1).folder);
+                fprintf('Successfully loaded stitched file: %d channels, %d samples, %.1f Hz\n', ...
+                        EEG.nbchan, EEG.pnts, EEG.srate);
+            catch ME
+                error('Failed to load stitched file: %s', ME.message);
+            end
+
+        else
+            % Neither BDF nor stitched file found
+            error('No BDF file or stitched file found for subject %s. Check %s and %s', ...
+                  subject_id, cfg.paths.data, fullfile(cfg.paths.output, 'raw-data'));
+        end
     end
     
     % Remove external channels that are not being used

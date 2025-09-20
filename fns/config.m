@@ -51,7 +51,7 @@ function cfg = config()
     end
     
     % Create output subdirectories if they don't exist
-    output_subdirs = {'preprocessed', 'ica', 'spectral', 'logs', 'qc', 'amica'};
+    output_subdirs = {'preprocessed', 'ica', 'spectral', 'logs', 'qc', 'amica', 'raw-data'};
     for i = 1:length(output_subdirs)
         subdir_path = fullfile(cfg.paths.output, output_subdirs{i});
         if ~exist(subdir_path, 'dir')
