@@ -15,7 +15,7 @@ function EEG_blocks = extract_blocks(EEG, cfg)
 % using the epoch window specified in cfg.blocks.epoch_window. This is done
 % BEFORE ICA to avoid contamination from stimulation artifacts.
 
-    subject_id = extractBefore(EEG.setname, '-prepro');
+    subject_id = extractBefore(EEG.setname, '-');
     fprintf('Extracting resting state blocks for subject %s...\n', subject_id);
     
     % Get block definitions
@@ -89,6 +89,6 @@ function EEG_blocks = extract_blocks(EEG, cfg)
     data_range = [min(EEG_blocks.data(:)), max(EEG_blocks.data(:))];
     fprintf('Extracted data range: [%.2f, %.2f] μV\n', data_range(1), data_range(2));
     
-    fprintf('Block extraction completed for subject %s.\n', subject_id);
+    fprintf('Block extraction completed for subject %s. \n', subject_id);
     
 end
