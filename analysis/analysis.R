@@ -1,105 +1,101 @@
-# analysis-6.R
+# analysis.R
 # Matt Kmiecik
-# Started 23 March 2025
-
 # Purpose: analyze the PSD data using linear mixed models after QC
-# Notes: this script was a copy/paste of analysis-5.R; it includes an additional
-# 24 participants
 
 # libraries ----
 library(tidyverse); library(readxl); library(patchwork)
+library(lme4); library(lmerTest); library(broom.mixed) 
 
 # functions ----
-source("fns/topo_interp.R"); source("fns/topo_plot.R")
+source("fns/topo_interp.R")
+source("fns/topo_plot.R")
+
+# CONSTANTS ----
+rdgy <- RColorBrewer::brewer.pal(11, "RdGy")
 
 # data ----
-files <- 
-  as.list(
-    dir(
-      path = "../output", 
-      pattern = "2025\\-03\\-25*.\\.rda", # modify the date here as necessary
-      full.names = TRUE
-    )
-  )
-walk(files, ~load(.x, .GlobalEnv)) # loads all files
-load("../output/chan-locs.rda")
+# helper function to load data
+load_data <- function(refresh = FALSE){
+  if (refresh) {
+    cat("Refreshing data...\n")
+    source("scripts/prepro-to-r.r")
+  } else{
+    cat("Using previously saved data.\n")
+  }
+  res <- read_rds(file = "output/r-prepro/psd_db.rds")
+  return(res)
+}
 
-# bad data
-bd <-
-  read_excel("../doc/ss-info.xlsx", sheet = "bad_data") %>% 
-  mutate(ss = as.character(ss))
+# loads data
+dd <- load_data(refresh = FALSE)
 
 # preps data
-alpha <- seq(8, 12, .25) # alpha range
-matt_ss <- as.character(c(1461831842001:1461831842024))
+band <- seq(8, 12, .25) # selected frequency band
+
+# preprocessing 
 ss <- 
-  psd_res %>%
-  filter(freq %in% alpha, !is.na(psd)) %>%
-  mutate(
-    block = block - 1, # adjusts as IAF was not collected,
-    task = if_else(block > 4, "post", "pre") # inserts task
-  ) %>%
-  group_by(ss, session, stim, block, eyes, elec, task) %>%
-  summarise(m = mean(psd), n = n()) %>% # takes mean PSD across alpha band
-  ungroup() %>%
-  left_join(., bd, by = c("ss", "session", "stim", "block", "eyes", "task")) %>%
-  filter(is.na(drop)) %>% # drops bad data here
-  # adds column here to see if there is an effect of who proc data
-  mutate(proc = if_else(ss %in% matt_ss, "matt", "students")) %>% 
+  dd %>%
+  filter(frequency %in% band, !is.na(psd_db)) %>%
+  summarise(
+    m = mean(psd_db), n = n(), 
+    .by = c(ss, session, stim, block, eyes, electrode, task)
+    ) %>%
   # turns certain cols to factors
   mutate(
-    across(.cols = c(eyes, task, stim, proc), .fns = ~factor(.x)),
+    across(.cols = c(eyes, task, stim), .fns = ~factor(.x)),
     eyes = relevel(eyes, ref = "open"), 
     task = relevel(task, ref = "pre"),
-    stim = relevel(stim, ref = "sham"),
-    proc = relevel(proc, ref = "matt")
+    stim = relevel(stim, ref = "sham")
   )
 
 # consider here replacing values with PSD > certain threshold?
 plot1_all <- 
   ggplot(ss, aes(m)) + 
-  geom_histogram(binwidth = 5) +
+  geom_histogram() +
   labs(x = "PSD", y = "Count", caption = "Bindwidth = 5 PSD.") +
   theme_bw()
 plot1_all
 
-ss %>% filter(m > 100) %>% arrange(-m)
-ss %>% summarise(M = mean(m), sd = sd(m))
-
-# let's try 100 PSD
-ss_r <- ss %>% mutate(m = if_else(m > 100, NA, m)) # replaces outliers with NA
-plot1_drop <-
-  ggplot(ss_r, aes(m)) + 
-  geom_histogram(binwidth = 5) +
-  labs(x = "PSD", y = "Count", caption = "Bindwidth = 5 PSD.") +
-  theme_bw()
-plot1_drop
+# PERHAPS ADD AN OUTLIER BLOCK HERE; PERHAPS 99%
+ss_r <- ss
+# # let's try 100 PSD
+# ss_r <- ss %>% mutate(m = if_else(m > 100, NA, m)) # replaces outliers with NA
+# plot1_drop <-
+#   ggplot(ss_r, aes(m)) + 
+#   geom_histogram(binwidth = 5) +
+#   labs(x = "PSD", y = "Count", caption = "Bindwidth = 5 PSD.") +
+#   theme_bw()
+# plot1_drop
   
 # linear mixed modeling ----
-library(lme4); library(lmerTest); library(broom.mixed) # pkgs
 
 # modeling
 mod <- 
   ss_r %>% 
-  nest_by(eyes, elec) %>%
-  mutate(mod1 = list(lmer(m ~ 1 + proc + block + stim*task + (1 | ss), data = data)))
+  nest_by(eyes, electrode) %>%
+  mutate(
+    mod1 = list(
+      lmer(m ~ 1 + session + block + stim*task + (1 | ss), data = data)
+      )
+    )
 
 ## model quality
 
 # grabs residuals
 mods <- mod$mod1 
-names(mods) <- interaction(mod$eyes, mod$elec)
+names(mods) <- interaction(mod$eyes, mod$electrode)
 resids <- 
   mods %>% 
   map(~tibble(resid = residuals(.))) %>% 
   list_rbind(names_to = "name") %>%
-  separate(name, into = c("eyes", "elec"))
+  separate(name, into = c("eyes", "electrode"))
 
 # QQ plot
 elec_qqplot <- function(df, teyes, velec){
+  elecs <- unique(df$electrode)
   p <-
     ggplot(
-      resids %>% filter(eyes == teyes, elec %in% chan_locs$labels[velec]), 
+      resids %>% filter(eyes == teyes, electrode %in% elecs[velec]), 
       aes(sample = resid)
     ) + 
       stat_qq() + 
@@ -110,7 +106,7 @@ elec_qqplot <- function(df, teyes, velec){
         y = "Sample Quantiles", 
         title = paste0("Eyes ", teyes)
         ) +
-      facet_wrap(~elec, ncol = 8)
+      facet_wrap(~electrode, ncol = 8)
   return(p)
 }
 
@@ -144,10 +140,13 @@ ests_fixed <-
 # function to help plot fixed effects
 plot_fixed <- function(data, tterm, teyes){
   this_est <- data %>% filter(term == tterm, eyes == teyes)
+  tcol <- c("ns" = rdgy[8], "p<.05" = rdgy[3])
   this_plot<- 
-    ggplot(this_est, aes(estimate, reorder(elec, estimate), color = p.value.sig)) + 
+    ggplot(this_est, aes(estimate, reorder(electrode, estimate), color = p.value.sig)) + 
+    geom_errorbarh(aes(xmin = estimate - std.error, xmax = estimate + std.error), height = .2) +
     geom_point() +
     labs(x = "Estimate", y = "Electrode", title = paste("Term:", tterm, "\nEyes:", teyes)) +
+    scale_color_manual(values = tcol) +
     theme_bw()
   return(this_plot)
 }
@@ -155,10 +154,6 @@ plot_fixed <- function(data, tterm, teyes){
 # Intercept
 plot_fixed(ests_fixed, "(Intercept)", "open")
 plot_fixed(ests_fixed, "(Intercept)", "closed")
-
-# Who processed the data? matt vs. students
-plot_fixed(ests_fixed, "procstudents", "open")
-plot_fixed(ests_fixed, "procstudents", "closed")
 
 # interaction effects
 plot_fixed(ests_fixed, "stimtacs:taskpost", "open")
@@ -194,22 +189,19 @@ plot_fixed(ests_fixed, "stimtrns", "closed")
 ss_task <- 
   ss_r %>%
   filter(!is.na(m)) %>% # removes missing data
-  group_by(ss, stim, eyes, task, elec) %>%
-  summarise(psd = mean(m), len = n()) %>%
-  ungroup()
+  summarise(psd = mean(m), len = n(), .by = c(ss, stim, eyes, task, electrode))
 
 # study summary
 study_sum <- 
   ss_task %>%
-  group_by(stim, eyes, task, elec) %>%
   summarise(
     M = mean(psd), 
     SD = sd(psd), 
     N = n(), 
     SEM = SD/sqrt(N), 
-    MOE = qt(.975, df = N - 1) * SEM
-  ) %>%
-  ungroup()
+    MOE = qt(.975, df = N - 1) * SEM,
+    .by = c(stim, eyes, task, electrode)
+  )
 
 # to get shapes according to p-values
 ests_int <-
@@ -228,12 +220,10 @@ ests_int <-
 study_sum_sub <- 
   study_sum %>% 
   select(stim:M, N) %>%
-  group_by(stim, eyes, elec) %>%
-  mutate(M = diff(M)) %>% # subtraction
-  ungroup() %>%
+  mutate(M = diff(M), .by = c(stim, eyes, electrode)) %>% # subtraction
   filter(task == "post") %>% # removes pre as these are the same values as post
   mutate(task = "post > pre") %>% # renames so that task is accurate
-  left_join(., ests_int, by = c("stim", "eyes", "elec"))
+  left_join(., ests_int, by = c("stim", "eyes", "electrode"))
 
 ## TOPO CONTSTANTS ----
 interp_size <- .67
@@ -245,7 +235,11 @@ interp <-
   study_sum %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
   map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
+    ~topo_interp(
+      data = .x, meas = "M", gridRes = 100, size = interp_size, 
+      elec_loc_path = "doc/chan-locs.rda"
+      ), 
+    .id = "name"
   ) %>%
   separate(name, into = c("stim", "eyes", "task")) %>%
   as_tibble() %>%
@@ -256,7 +250,11 @@ interp_sub <-
   study_sum_sub %>%
   split(interaction(.$stim, .$eyes, .$task, sep = "_")) %>%
   map_dfr(
-    ~topo_interp(data = .x, meas = "M", gridRes = 100, size = interp_size), .id = "name"
+    ~topo_interp(
+      data = .x, meas = "M", gridRes = 100, size = interp_size,
+      elec_loc_path = "doc/chan-locs.rda"
+      ), 
+    .id = "name"
   ) %>%
   separate(name, into = c("stim", "eyes", "task"), sep = "\\_") %>%
   as_tibble()
@@ -264,17 +262,21 @@ interp_sub <-
 # plot eyes closed
 this_orig <- study_sum %>% filter(eyes == "closed")
 this_interp <- interp %>% filter(eyes == "closed")
-this_orig %>% 
+this_minmax <- 
+  this_orig %>% 
   group_by(stim, eyes, task) %>%
   summarise(mean = mean(M), min = min(M), max = max(M))
+this_min <- 0
+this_max <- max(this_minmax$max)
+this_color_pal_breaks <- round(seq(this_min, this_max, length.out = 5))
 
 psd_closed_plot <- 
   topo_plot(
     orig_data = this_orig, 
     interp_data = this_interp, 
     dv = M,
-    color_pal_limits = c(0, 30),
-    color_pal_breaks = seq(0, 30, 5),
+    color_pal_limits = c(this_min, this_max),
+    color_pal_breaks = this_color_pal_breaks,
     elec_shape_col = NULL,
     elec_shapes = 19,
     bwidth = 1.5, # width of colorbar
@@ -287,7 +289,8 @@ psd_closed_plot <-
     nose_size = .5, # size of nose shape,
     nose_adj = nose_adj, # adjusts position of nose,
     size_maskRing = 6,
-    legend_name = "PSD (uV^2/Hz)"
+    legend_name = "PSD (uV^2/Hz)",
+    elec_loc_path = "doc/chan-locs.rda"
   ) + 
   facet_grid(stim~task) +
   labs(title = "Eyes Closed")
