@@ -13,8 +13,8 @@ source("fns/extract_spectral_data.R")
 
 # Configuration ----
 CONFIG <- list(
-  stim_table_file = Sys.getenv("STIM_TABLE_FILE", "doc/ss-info-2025-03-23.xlsx"),
-  stim_table_sheet = "session-info",
+  stim_table_file = Sys.getenv("STIM_TABLE_FILE", "doc/ss-info.xlsx"),
+  stim_table_sheet = "stimtable",
   spectral_dir = "output/spectral",
   spectral_pattern = "*spectral.mat",
   output_dir = "output/r-prepro",
