@@ -122,3 +122,11 @@ res <- extract_all_spectral_data(spec_files)
 
 # Process and save all data variables
 results <- organize_and_save_data(res, CONFIG$data_vars, stim_table, CONFIG$output_dir)
+
+# clears script objects ----
+rm(
+  CONFIG, res, results, stim_table, spec_files, extract_all_spectral_data, 
+  extract_spectral_data, load_spectral_files, load_stimulation_table, 
+  organize_and_save_data
+   )
+gc()
