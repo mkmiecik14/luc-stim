@@ -45,7 +45,7 @@ topo_plot <- function(
     )
   
   # joins original data with electrode positions
-  data_elecs <- left_join(orig_data, elec_locs, by = c("elec" = "labels"))
+  data_elecs <- left_join(orig_data, elec_locs, by = c("electrode" = "labels"))
   
   # theme_topo()
   # Plotting tools for the topo map with head shape:
@@ -108,13 +108,13 @@ topo_plot <- function(
       data = maskRing,
       aes(x, y, z = NULL, fill = NULL),
       colour = "white", #white
-      size = size_maskRing
+      linewidth = size_maskRing
     ) +
     theme_topo() + # topo theme is added (white background etc.)
     # plots headshape
-    geom_path(data = headShape, aes(x, y, z = NULL, fill = NULL), size = headshape_size) +
+    geom_path(data = headShape, aes(x, y, z = NULL, fill = NULL), linewidth = headshape_size) +
     # plots nose
-    geom_path(data = nose, aes(x, y, z = NULL, fill = NULL), size = nose_size) +
+    geom_path(data = nose, aes(x, y, z = NULL, fill = NULL), linewidth = nose_size) +
     # colors here
     # note: oob = squish forces everything outside the colour limits to equal
     # nearest colour boundary (i.e., below min colours = min colour)
@@ -141,7 +141,7 @@ topo_plot <- function(
         ticks.colour = "black", 
         barwidth = unit(bwidth, "in"),
         barheight = unit(bheight, "in"),
-        theme = theme(legend.title.align = .5)
+        theme = theme(legend.title = element_text(hjust = .5))
       )
     ) +
     theme(legend.position = "bottom")

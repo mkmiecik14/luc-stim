@@ -33,7 +33,7 @@ topo_interp <-
       y = radius*cos(radianTheta)
     )
     
-  data_elecs <- left_join(data, elec_locs, by = c("elec" = "labels"))
+  data_elecs <- left_join(data, elec_locs, by = c("electrode" = "labels"))
   #return(data_elecs)
   
   
