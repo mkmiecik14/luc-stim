@@ -46,8 +46,7 @@ res <-
   bands %>%
   imap(
     ~bandwise_analysis(
-      data_file = dd, this_unit = "dB", band_name = .y, band = .x, p_cor = FALSE,
-      thresh = 0.99
+      data_file = dd, this_unit = "dB", band_name = .y, band = .x, thresh = 0.99
       )
     )
 

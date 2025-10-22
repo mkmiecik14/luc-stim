@@ -76,3 +76,6 @@ doc/
 data/
 output/
 sandbox.m
+
+/.quarto/
+_freeze/

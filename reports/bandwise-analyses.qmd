@@ -1,0 +1,45 @@
+---
+title: "Bandwise Analyses"
+author: "Matt Kmiecik"
+date: last-modified
+date-format: iso
+format: pdf
+execute: 
+  freeze: auto
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=TRUE, warning=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+#knitr chunk options for document ----
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+# libraries ----
+library(tidyverse)
+
+# custom functions ----
+fns <- c("custom_datatable.R", "regenerate_plots.R")
+walk(here::here("fns", fns), source) # walk() returns input invisibly
+
+# data ---
+f <- here::here("output", "r-analysis", "bandwise-analyses-db.rds")
+res <- read_rds(f)
+
+# reconstructs plots ----
+plots <- regenerate_plots(results = res, p_fdr = FALSE)
+```
+
+## Description
+
+After preprocessing the data in MATLAB, data were brought into R for further visualization. I compared participants' global power estimates across blocks, stimulation type, time (pre vs. post testing), and electrode position. From there, I determined that specific participants' blocks were outliers due to noise that affected the entire montage (mainly from large fluctuations in signal from noisy reference channels.)
+
+## Broadband Power Spectral Density Histogram
+
+```{r}
+plots$delta$histogram
+```
+
+
+
+
