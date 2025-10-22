@@ -2,9 +2,9 @@
 # Matt Kmiecik
 # Purpose: analyze the PSD data using linear mixed models after QC
 
-bandwise_analysis <- function( data_file = "output/r-prepro/psd_db.rds",
+bandwise_analysis <- function(data_file = NULL,
     this_unit = "dB", band_name = "alpha", band = seq(8, 12, .25), p_cor = TRUE, 
-    thresh = 0.99, refresh_data = FALSE){
+    thresh = 0.99){
   
   # libraries ----
   library(tidyverse); library(readxl); library(patchwork)
@@ -22,25 +22,17 @@ bandwise_analysis <- function( data_file = "output/r-prepro/psd_db.rds",
   )
   
   # data ----
-  # helper function to load data
-  load_data <- function(refresh = FALSE){
-    if (refresh) {
-      cat("Refreshing data...\n")
-      source("scripts/prepro-to-r.r")
-    } else{
-      cat("Using previously saved data.\n")
-    }
-    res <- read_rds(file = data_file)
-    return(res)
+  # validation
+  if (!is.data.frame(data_file)) {
+    stop("Data must be provided!")
   }
   
-  # loads data
-  cat("Loading data...\n")
-  dd <- load_data(refresh = refresh_data)
+  message("=== BEGINNING ", toupper(band_name), " ANALYSIS ===")
+  message("")
   
   # preprocessing 
   ss <- 
-    dd %>%
+    data_file %>%
     filter(frequency %in% band, !is.na(psd_db)) %>%
     summarise(
       m = mean(psd_db), n = n(), 
@@ -577,7 +569,8 @@ bandwise_analysis <- function( data_file = "output/r-prepro/psd_db.rds",
         labs(
           x = "Task", 
           y = "Mean PSD", 
-          title = paste0("Sham vs. ", this_stim, " * Task (pre vs. post) Interaction\nEyes ", this_eyes)
+          title = paste0("Sham vs. ", this_stim, " * Task (pre vs. post) Interaction\nEyes ", this_eyes),
+          caption = "Error bars are SEM."
         ) +
         theme(legend.position = "bottom") +
         facet_wrap(~electrode)
@@ -594,10 +587,10 @@ bandwise_analysis <- function( data_file = "output/r-prepro/psd_db.rds",
     band_name = band_name,
     unit = this_unit,
     exclusion_threshold = list(thresh = thresh, lower = lower, upper = upper),
-    data = ss_r,
+    #data = ss_r, # not saving the original data as it's too memory intensive
     data_dropped = ss_dropped,
     power_histogram = plot1_all,
-    models = mod,
+    #models = mod, # also dropping this as likely memory intensive
     qq_plots = qq_plots,
     omni = omni,
     ests = ests_fixed,
