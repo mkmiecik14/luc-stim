@@ -36,8 +36,13 @@ load_data <- function(data_file = NULL, refresh = FALSE){
   return(res)
 }
 
-# loads data
-cat("Loading data...\n")
+######################
+#                    #
+# PSD in dB ANALYSIS #
+#                    #
+######################
+
+cat("Loading data for PSD in dB...\n")
 f <- file.path("output", "r-prepro", "psd_db.rds")
 dd <- load_data(data_file = f, refresh = FALSE)
 
@@ -52,4 +57,28 @@ res <-
 
 # saves out ----
 f_out <- file.path("output", "r-analysis", "bandwise-analyses-db.rds")
+write_rds(res, f_out)
+
+###########################
+#                         #
+# PSD in uv^2/Hz Analysis #
+#                         #
+###########################
+
+cat("Loading data for PSD in uV^2/Hz...\n")
+f <- file.path("output", "r-prepro", "psd_uv.rds")
+dd <- load_data(data_file = f, refresh = FALSE)
+
+# proc ----
+res <- 
+  bands %>%
+  imap(
+    ~bandwise_analysis(
+      data_file = dd, this_unit = "uV^2/Hz", band_name = .y, band = .x, 
+      thresh = 0.95
+    )
+  )
+
+# saves out ----
+f_out <- file.path("output", "r-analysis", "bandwise-analyses-uv.rds")
 write_rds(res, f_out)

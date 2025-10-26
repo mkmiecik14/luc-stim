@@ -29,13 +29,27 @@ bandwise_analysis <- function(data_file = NULL,
   
   message("=== BEGINNING ", toupper(band_name), " ANALYSIS ===")
   message("")
-  
-  # preprocessing 
-  ss <- 
+
+  # Determine which PSD column is available ----
+  psd_cols <- c("psd_db", "psd_uv")
+  available_cols <- psd_cols[psd_cols %in% names(data_file)]
+
+  if (length(available_cols) == 0) {
+    stop("No PSD column found! Expected either 'psd_db' or 'psd_uv'")
+  } else if (length(available_cols) > 1) {
+    stop("Multiple PSD columns found: ", paste(available_cols, collapse = ", "),
+         ". Please ensure only one PSD column is present.")
+  }
+
+  psd_col <- available_cols[1]
+  cat("Using PSD column:", psd_col, "\n")
+
+  # preprocessing
+  ss <-
     data_file %>%
-    filter(frequency %in% band, !is.na(psd_db)) %>%
+    filter(frequency %in% band, !is.na(.data[[psd_col]])) %>%
     summarise(
-      m = mean(psd_db), n = n(), 
+      m = mean(.data[[psd_col]]), n = n(),
       .by = c(ss, session, stim, block, eyes, electrode, task)
       ) %>%
     mutate(ss = str_extract(ss, "^\\d+(?=_)")) %>% # cleans ss number

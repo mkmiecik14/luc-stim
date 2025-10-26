@@ -1,45 +1,638 @@
 ---
-title: "Bandwise Analyses"
+title: "Bandwise EEG Analysis Results"
+subtitle: "Power Spectral Density Analysis Across Frequency Bands"
 author: "Matt Kmiecik"
 date: last-modified
 date-format: iso
-format: pdf
+params:
+  results_file: "output/r-analysis/bandwise-analyses-db.rds"
+  use_fdr: false
+  unit_type: "dB"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    code-summary: "Show code"
+    self-contained: true
+    theme: cosmo
+    grid:
+      margin-width: 350px
+  pdf:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    keep-tex: false
 execute: 
-  freeze: auto
+  warning: false
+  message: false
+  echo: false  # Hide code by default, show with code-fold button
 editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
-```{r setup, include=TRUE, warning=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
-#knitr chunk options for document ----
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```{r setup, include=FALSE, message=FALSE}
+# # for testing
+# params <- list(
+#   results_file = "output/r-analysis/bandwise-analyses-uv.rds",
+#   use_fdr = FALSE,
+#   unit_type = "uV"
+# )
 
-# libraries ----
+
+# Chunk options
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 12,
+  fig.height = 8
+)
+
+# Libraries
 library(tidyverse)
+library(patchwork)
+library(knitr)
 
-# custom functions ----
-fns <- c("custom_datatable.R", "regenerate_plots.R")
-walk(here::here("fns", fns), source) # walk() returns input invisibly
+# Source regeneration functions
+source("fns/regenerate_plots.R")
 
-# data ---
-f <- here::here("output", "r-analysis", "bandwise-analyses-db.rds")
-res <- read_rds(f)
+# Parameter validation
+if (!file.exists(params$results_file)) {
+  stop("Results file not found: ", params$results_file)
+}
 
-# reconstructs plots ----
-plots <- regenerate_plots(results = res, p_fdr = FALSE)
+if (!params$unit_type %in% c("dB", "uV")) {
+  stop("unit_type must be either 'dB' or 'uV', got: ", params$unit_type)
+}
+
+# Load results
+results <- read_rds(params$results_file)
+
+# Set p-value correction method from parameters
+USE_FDR <- params$use_fdr
+UNIT_TYPE <- params$unit_type
+
+# Get all band names
+band_names <- names(results)
+
+# Create dynamic subtitle based on parameters
+correction_method <- if (USE_FDR) "FDR-corrected" else "Uncorrected"
+unit_symbol <- if (UNIT_TYPE == "uV") "$\\mu V^2/Hz$" else UNIT_TYPE
+subtitle_text <- paste0("Power Spectral Density Analysis (", unit_symbol, ", ", correction_method, " p-values)")
 ```
 
-## Description
+# Introduction
 
-After preprocessing the data in MATLAB, data were brought into R for further visualization. I compared participants' global power estimates across blocks, stimulation type, time (pre vs. post testing), and electrode position. From there, I determined that specific participants' blocks were outliers due to noise that affected the entire montage (mainly from large fluctuations in signal from noisy reference channels.)
+**Subtitle:** `r subtitle_text`
 
-## Broadband Power Spectral Density Histogram
+This document presents comprehensive power spectral density (PSD) analysis results across multiple frequency bands. Each section presents results for a specific frequency band, organized by analysis type.
+
+**Analysis Parameters:**
+
+- P-value correction: `r correction_method`
+- Unit: `r unit_symbol`
+- Frequency bands analyzed: `r paste(band_names, collapse = ", ")`
+- Results file: `r basename(params$results_file)`
+
+---
+
+# Data Quality & Distribution {.tabset}
+
+This section shows histograms and QQ plots for assessing data quality and distribution assumptions across all bands.
 
 ```{r}
-plots$delta$histogram
+#| label: generate-histograms
+#| include: false
+
+# Generate histograms for all bands
+hist_plots <- regenerate_plots(
+  results, 
+  plot_types = "histogram",
+  p_fdr = USE_FDR
+)
 ```
 
+```{r}
+#| label: generate-qq
+#| include: false
 
+# Generate QQ plots for all bands
+qq_plots <- regenerate_plots(
+  results,
+  plot_types = "qq",
+  p_fdr = USE_FDR
+)
+```
 
+## Histograms
 
+### Delta Band {.unnumbered}
+```{r}
+#| fig-cap: "Delta band (1-4 Hz) power distribution after outlier exclusion"
+hist_plots$delta$histogram
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-cap: "Theta band (4-8 Hz) power distribution after outlier exclusion"
+hist_plots$theta$histogram
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-cap: "Alpha band (8-13 Hz) power distribution after outlier exclusion"
+hist_plots$alpha$histogram
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-cap: "Beta low band (13-20 Hz) power distribution after outlier exclusion"
+hist_plots$beta_low$histogram
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-cap: "Beta high band (20-30 Hz) power distribution after outlier exclusion"
+hist_plots$beta_high$histogram
+```
+
+## QQ Plots - Eyes Open
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Delta band QQ plots for eyes open condition"
+qq_plots$delta$qq_plots$eyes_open
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Theta band QQ plots for eyes open condition"
+qq_plots$theta$qq_plots$eyes_open
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Alpha band QQ plots for eyes open condition"
+qq_plots$alpha$qq_plots$eyes_open
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Beta low band QQ plots for eyes open condition"
+qq_plots$beta_low$qq_plots$eyes_open
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Beta high band QQ plots for eyes open condition"
+qq_plots$beta_high$qq_plots$eyes_open
+```
+
+## QQ Plots - Eyes Closed
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Delta band QQ plots for eyes closed condition"
+qq_plots$delta$qq_plots$eyes_closed
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Theta band QQ plots for eyes closed condition"
+qq_plots$theta$qq_plots$eyes_closed
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Alpha band QQ plots for eyes closed condition"
+qq_plots$alpha$qq_plots$eyes_closed
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Beta low band QQ plots for eyes closed condition"
+qq_plots$beta_low$qq_plots$eyes_closed
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-height: 10
+#| fig-cap: "Beta high band QQ plots for eyes closed condition"
+qq_plots$beta_high$qq_plots$eyes_closed
+```
+
+---
+
+# Topographic Maps {.tabset}
+
+Topographic distributions of power spectral density across the scalp for each frequency band.
+
+```{r}
+#| label: generate-topos
+#| include: false
+
+# Generate all topography plots
+topo_plots <- regenerate_plots(
+  results,
+  plot_types = c("topos_eyes_closed", "topos_eyes_open", "topos_interaction"),
+  p_fdr = USE_FDR
+)
+```
+
+## Eyes Closed - Main Effects
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Delta band topographic maps - Eyes Closed condition"
+topo_plots$delta$topos_eyes_closed$comb_plot
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Theta band topographic maps - Eyes Closed condition"
+topo_plots$theta$topos_eyes_closed$comb_plot
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Alpha band topographic maps - Eyes Closed condition"
+topo_plots$alpha$topos_eyes_closed$comb_plot
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Beta low band topographic maps - Eyes Closed condition"
+topo_plots$beta_low$topos_eyes_closed$comb_plot
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Beta high band topographic maps - Eyes Closed condition"
+topo_plots$beta_high$topos_eyes_closed$comb_plot
+```
+
+## Eyes Open - Main Effects
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Delta band topographic maps - Eyes Open condition"
+topo_plots$delta$topos_eyes_open$comb_plot
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Theta band topographic maps - Eyes Open condition"
+topo_plots$theta$topos_eyes_open$comb_plot
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Alpha band topographic maps - Eyes Open condition"
+topo_plots$alpha$topos_eyes_open$comb_plot
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Beta low band topographic maps - Eyes Open condition"
+topo_plots$beta_low$topos_eyes_open$comb_plot
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-width: 14
+#| fig-height: 10
+#| fig-cap: "Beta high band topographic maps - Eyes Open condition"
+topo_plots$beta_high$topos_eyes_open$comb_plot
+```
+
+## Interactions (Stim × Task)
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| fig-cap: "Delta band interaction effects (Stimulation × Task)"
+topo_plots$delta$interaction_topos
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| fig-cap: "Theta band interaction effects (Stimulation × Task)"
+topo_plots$theta$interaction_topos
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| fig-cap: "Alpha band interaction effects (Stimulation × Task)"
+topo_plots$alpha$interaction_topos
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| fig-cap: "Beta low band interaction effects (Stimulation × Task)"
+topo_plots$beta_low$interaction_topos
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| fig-cap: "Beta high band interaction effects (Stimulation × Task)"
+topo_plots$beta_high$interaction_topos
+```
+
+---
+
+# Statistical Estimates {.tabset}
+
+Fixed-effect coefficient estimates from linear mixed models with 95% confidence intervals.
+
+```{r}
+#| label: generate-estimates
+#| include: false
+
+# Generate estimate plots
+est_plots <- regenerate_plots(
+  results,
+  plot_types = "estimates",
+  p_fdr = USE_FDR
+)
+```
+
+## Interaction Effects - Eyes Open
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+# Find interaction terms for delta, eyes open
+delta_int_names <- grep(":", names(est_plots$delta$est_plots), value = TRUE)
+delta_int_open <- grep("open", delta_int_names, value = TRUE)
+
+# Display each interaction plot
+for (plot_name in delta_int_open) {
+  print(est_plots$delta$est_plots[[plot_name]])
+}
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+theta_int_names <- grep(":", names(est_plots$theta$est_plots), value = TRUE)
+theta_int_open <- grep("open", theta_int_names, value = TRUE)
+
+for (plot_name in theta_int_open) {
+  print(est_plots$theta$est_plots[[plot_name]])
+}
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-height: 10
+alpha_int_names <- grep(":", names(est_plots$alpha$est_plots), value = TRUE)
+alpha_int_open <- grep("open", alpha_int_names, value = TRUE)
+
+for (plot_name in alpha_int_open) {
+  print(est_plots$alpha$est_plots[[plot_name]])
+}
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-height: 10
+beta_low_int_names <- grep(":", names(est_plots$beta_low$est_plots), value = TRUE)
+beta_low_int_open <- grep("open", beta_low_int_names, value = TRUE)
+
+for (plot_name in beta_low_int_open) {
+  print(est_plots$beta_low$est_plots[[plot_name]])
+}
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-height: 10
+beta_high_int_names <- grep(":", names(est_plots$beta_high$est_plots), value = TRUE)
+beta_high_int_open <- grep("open", beta_high_int_names, value = TRUE)
+
+for (plot_name in beta_high_int_open) {
+  print(est_plots$beta_high$est_plots[[plot_name]])
+}
+```
+
+## Interaction Effects - Eyes Closed
+
+### Delta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+delta_int_closed <- grep("closed", delta_int_names, value = TRUE)
+
+for (plot_name in delta_int_closed) {
+  print(est_plots$delta$est_plots[[plot_name]])
+}
+```
+
+### Theta Band {.unnumbered}
+```{r}
+#| fig-height: 10
+theta_int_closed <- grep("closed", theta_int_names, value = TRUE)
+
+for (plot_name in theta_int_closed) {
+  print(est_plots$theta$est_plots[[plot_name]])
+}
+```
+
+### Alpha Band {.unnumbered}
+```{r}
+#| fig-height: 10
+alpha_int_closed <- grep("closed", alpha_int_names, value = TRUE)
+
+for (plot_name in alpha_int_closed) {
+  print(est_plots$alpha$est_plots[[plot_name]])
+}
+```
+
+### Beta Low Band {.unnumbered}
+```{r}
+#| fig-height: 10
+beta_low_int_closed <- grep("closed", beta_low_int_names, value = TRUE)
+
+for (plot_name in beta_low_int_closed) {
+  print(est_plots$beta_low$est_plots[[plot_name]])
+}
+```
+
+### Beta High Band {.unnumbered}
+```{r}
+#| fig-height: 10
+beta_high_int_closed <- grep("closed", beta_high_int_names, value = TRUE)
+
+for (plot_name in beta_high_int_closed) {
+  print(est_plots$beta_high$est_plots[[plot_name]])
+}
+```
+
+---
+
+# Significant Interactions {.tabset}
+
+Line plots showing significant Stimulation × Task interactions at individual electrodes.
+
+```{r}
+#| label: generate-line-graphs
+#| include: false
+
+# Generate line graphs for significant interactions
+line_plots <- regenerate_plots(
+  results,
+  plot_types = "line_graphs",
+  p_fdr = USE_FDR
+)
+```
+
+## Delta Band
+
+```{r}
+if (!is.null(line_plots$delta$interaction_line_graphs) && 
+    length(line_plots$delta$interaction_line_graphs) > 0) {
+  
+  for (i in seq_along(line_plots$delta$interaction_line_graphs)) {
+    print(line_plots$delta$interaction_line_graphs[[i]])
+  }
+  
+} else {
+  cat("No significant interactions found for delta band.\n")
+}
+```
+
+## Theta Band
+
+```{r}
+if (!is.null(line_plots$theta$interaction_line_graphs) && 
+    length(line_plots$theta$interaction_line_graphs) > 0) {
+  
+  for (i in seq_along(line_plots$theta$interaction_line_graphs)) {
+    print(line_plots$theta$interaction_line_graphs[[i]])
+  }
+  
+} else {
+  cat("No significant interactions found for theta band.\n")
+}
+```
+
+## Alpha Band
+
+```{r}
+if (!is.null(line_plots$alpha$interaction_line_graphs) && 
+    length(line_plots$alpha$interaction_line_graphs) > 0) {
+  
+  for (i in seq_along(line_plots$alpha$interaction_line_graphs)) {
+    print(line_plots$alpha$interaction_line_graphs[[i]])
+  }
+  
+} else {
+  cat("No significant interactions found for alpha band.\n")
+}
+```
+
+## Beta Low Band
+
+```{r}
+if (!is.null(line_plots$beta_low$interaction_line_graphs) && 
+    length(line_plots$beta_low$interaction_line_graphs) > 0) {
+  
+  for (i in seq_along(line_plots$beta_low$interaction_line_graphs)) {
+    print(line_plots$beta_low$interaction_line_graphs[[i]])
+  }
+  
+} else {
+  cat("No significant interactions found for beta low band.\n")
+}
+```
+
+## Beta High Band
+
+```{r}
+if (!is.null(line_plots$beta_high$interaction_line_graphs) && 
+    length(line_plots$beta_high$interaction_line_graphs) > 0) {
+  
+  for (i in seq_along(line_plots$beta_high$interaction_line_graphs)) {
+    print(line_plots$beta_high$interaction_line_graphs[[i]])
+  }
+  
+} else {
+  cat("No significant interactions found for beta high band.\n")
+}
+```
+
+---
+
+# Summary
+
+This report presented comprehensive analysis results across `r length(band_names)` frequency bands:
+
+```{r}
+# Create summary table
+summary_data <- tibble(
+  Band = band_names,
+  `Frequency Range (Hz)` = c("1-4", "4-8", "8-13", "13-20", "20-30"),
+  `Has Significant Interactions` = c(
+    !is.null(line_plots$delta$interaction_line_graphs) && 
+      length(line_plots$delta$interaction_line_graphs) > 0,
+    !is.null(line_plots$theta$interaction_line_graphs) && 
+      length(line_plots$theta$interaction_line_graphs) > 0,
+    !is.null(line_plots$alpha$interaction_line_graphs) && 
+      length(line_plots$alpha$interaction_line_graphs) > 0,
+    !is.null(line_plots$beta_low$interaction_line_graphs) && 
+      length(line_plots$beta_low$interaction_line_graphs) > 0,
+    !is.null(line_plots$beta_high$interaction_line_graphs) && 
+      length(line_plots$beta_high$interaction_line_graphs) > 0
+  )
+)
+
+kable(summary_data, caption = "Analysis Summary by Frequency Band")
+```
+
+**Analysis Settings:**
+
+- P-value correction method: `r correction_method`
+- Unit: `r unit_symbol`
+- Significance threshold: p < 0.05
+- Results file: `r basename(params$results_file)`
+- Date generated: `r Sys.Date()`
+
+---

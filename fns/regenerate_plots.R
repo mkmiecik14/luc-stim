@@ -93,7 +93,7 @@ regenerate_plots <- function(results = NULL,
     if ("histogram" %in% plot_types) {
       cat("  - Creating power histogram...\n")
       
-      plots$histogram <- 
+      hist_orig <- 
         ggplot(band_data$power_histogram_data, aes(m)) + 
         geom_histogram() +
         geom_vline(
@@ -105,6 +105,7 @@ regenerate_plots <- function(results = NULL,
           color = band_data$CONFIG$rdgy[3]
         ) +
         labs(
+          subtitle = "Original",
           x = paste0("PSD (", band_data$unit, ")"), 
           y = "Count", 
           caption = paste0(
@@ -115,6 +116,42 @@ regenerate_plots <- function(results = NULL,
         ) +
         ggtitle(paste(toupper(band), "- Electrodes x Blocks x Conditions")) +
         theme_bw()
+      
+      hist_filt <- 
+        ggplot(
+          band_data$power_histogram_data %>% 
+            filter(
+              between(m, band_data$histogram_thresholds$lower, band_data$histogram_thresholds$upper)
+              ), 
+          aes(m)
+          ) + 
+        geom_histogram() +
+        geom_vline(
+          xintercept = c(
+            band_data$histogram_thresholds$lower, 
+            band_data$histogram_thresholds$upper
+          ), 
+          linetype = 2, 
+          color = band_data$CONFIG$rdgy[3]
+        ) +
+        labs(
+          subtitle = "Filtered",
+          x = paste0("PSD (", band_data$unit, ")"), 
+          y = "Count", 
+          caption = paste0(
+            "Lines depict ", 
+            band_data$exclusion_threshold$thresh * 100, 
+            "% cutoffs."
+          )
+        ) +
+        ggtitle(paste(toupper(band), "- Electrodes x Blocks x Conditions")) +
+        theme_bw()
+      
+      plots$histogram <- 
+        (hist_orig + hist_filt) +
+        plot_annotation(tag_levels = 'A') &
+        theme(plot.tag = element_text(face = 'bold'))
+      
     }
     
     # 2. QQ PLOTS ----
@@ -163,12 +200,20 @@ regenerate_plots <- function(results = NULL,
         this_est <- data %>% filter(term == tterm, eyes == teyes)
         tcol <- c("ns" = band_data$CONFIG$rdgy[8], "p<.05" = band_data$CONFIG$rdgy[3])
         
-        # Determine which p-value column to use
-        sig_col <- if ("p.fdr.sig" %in% names(this_est)) {
-          sym("p.fdr.sig")
+        # Determine which p-value column to use based on p_fdr argument
+        sig_col_name <- if (p_fdr) {
+          "p.fdr.sig"
         } else {
-          sym("p.value.sig")
+          "p.value.sig"
         }
+
+        # Check if the selected column exists
+        if (!sig_col_name %in% names(this_est)) {
+          warning(paste("Column", sig_col_name, "not found in estimate data. Using available p-value column."))
+          sig_col_name <- if ("p.fdr.sig" %in% names(this_est)) "p.fdr.sig" else "p.value.sig"
+        }
+
+        sig_col <- sym(sig_col_name)
         
         this_plot <- 
           ggplot(
@@ -294,21 +339,54 @@ regenerate_topo_plots <- function(data_orig, data_interp, data_sub_orig,
   this_sub_interp <- data_sub_interp %>% filter(eyes == cond)
   
   # Determine color scale for main plot
-  minmax <- 
-    this_orig %>% 
+  minmax <-
+    this_orig %>%
     group_by(stim, eyes, task) %>%
     summarise(mean = mean(M), min = min(M), max = max(M), .groups = "drop")
-  
+
   min_val <- min(minmax$min)
   max_val <- max(minmax$max)
   n <- if_else(abs(min_val) > abs(max_val), abs(min_val), abs(max_val))
-  
+
   symmetric_vector <- function(magnitude, num_each_side = 3) {
     total_length <- 2 * num_each_side + 1
     return(seq(-magnitude, magnitude, length.out = total_length))
   }
-  
-  color_pal_breaks <- round(symmetric_vector(n))
+
+  # Helper function to generate color breaks without duplicates
+  generate_color_breaks <- function(magnitude, num_each_side = 3) {
+    # Create symmetric vector
+    breaks <- seq(-magnitude, magnitude, length.out = 2 * num_each_side + 1)
+
+    # Determine appropriate rounding based on magnitude
+    if (magnitude >= 10) {
+      breaks <- round(breaks, 0)  # Round to integer for large values
+    } else if (magnitude >= 1) {
+      breaks <- round(breaks, 1)  # Round to 1 decimal for medium values
+    } else {
+      breaks <- round(breaks, 2)  # Round to 2 decimals for small values
+    }
+
+    # Remove duplicates while preserving order
+    breaks <- unique(breaks)
+
+    # Ensure we have at least 3 breaks (min, mid, max)
+    if (length(breaks) < 3) {
+      breaks <- seq(-magnitude, magnitude, length.out = 3)
+      if (magnitude >= 10) {
+        breaks <- round(breaks, 0)
+      } else if (magnitude >= 1) {
+        breaks <- round(breaks, 1)
+      } else {
+        breaks <- round(breaks, 2)
+      }
+      breaks <- unique(breaks)
+    }
+
+    return(breaks)
+  }
+
+  color_pal_breaks <- generate_color_breaks(n)
   
   # Main eyes plot
   eyes_plot <- 
@@ -336,20 +414,20 @@ regenerate_topo_plots <- function(data_orig, data_interp, data_sub_orig,
     labs(title = paste(toupper(band_name), "- Eyes", tools::toTitleCase(cond)))
   
   # Determine color scale for subtraction plot
-  this_sub_minmax <- 
-    this_sub_orig %>% 
+  this_sub_minmax <-
+    this_sub_orig %>%
     group_by(stim, eyes, task) %>%
     summarise(mean = mean(M), min = min(M), max = max(M), .groups = "drop")
-  
+
   this_sub_min <- min(this_sub_minmax$min)
   this_sub_max <- max(this_sub_minmax$max)
   nn <- if_else(
-    abs(this_sub_min) > abs(this_sub_max), 
-    abs(this_sub_min), 
+    abs(this_sub_min) > abs(this_sub_max),
+    abs(this_sub_min),
     abs(this_sub_max)
   )
-  
-  this_sub_color_pal_breaks <- round(symmetric_vector(nn))
+
+  this_sub_color_pal_breaks <- generate_color_breaks(nn)
   
   # Subtraction plot
   sub_plot <- 
@@ -419,22 +497,50 @@ regenerate_interaction_topos <- function(dub_sub_df, dub_sub_interp, unit,
   # P-value shapes: open circle for ns, closed circle for significant
   p_value_shapes <- c("ns" = 1, "p<.05" = 19)
   
+  # Helper function to generate color breaks without duplicates
+  generate_color_breaks <- function(magnitude, num_each_side = 3) {
+    # Create symmetric vector
+    breaks <- seq(-magnitude, magnitude, length.out = 2 * num_each_side + 1)
+
+    # Determine appropriate rounding based on magnitude
+    if (magnitude >= 10) {
+      breaks <- round(breaks, 0)  # Round to integer for large values
+    } else if (magnitude >= 1) {
+      breaks <- round(breaks, 1)  # Round to 1 decimal for medium values
+    } else {
+      breaks <- round(breaks, 2)  # Round to 2 decimals for small values
+    }
+
+    # Remove duplicates while preserving order
+    breaks <- unique(breaks)
+
+    # Ensure we have at least 3 breaks (min, mid, max)
+    if (length(breaks) < 3) {
+      breaks <- seq(-magnitude, magnitude, length.out = 3)
+      if (magnitude >= 10) {
+        breaks <- round(breaks, 0)
+      } else if (magnitude >= 1) {
+        breaks <- round(breaks, 1)
+      } else {
+        breaks <- round(breaks, 2)
+      }
+      breaks <- unique(breaks)
+    }
+
+    return(breaks)
+  }
+
   # Determine color scale
-  minmax <- 
-    dub_sub_df %>% 
+  minmax <-
+    dub_sub_df %>%
     group_by(stim, eyes) %>%
     summarise(mean = mean(M_sub), min = min(M_sub), max = max(M_sub), .groups = "drop")
-  
+
   min_val <- min(minmax$min)
   max_val <- max(minmax$max)
   n <- if_else(abs(min_val) > abs(max_val), abs(min_val), abs(max_val))
-  
-  symmetric_vector <- function(magnitude, num_each_side = 3) {
-    total_length <- 2 * num_each_side + 1
-    return(seq(-magnitude, magnitude, length.out = total_length))
-  }
-  
-  color_pal_breaks <- round(symmetric_vector(n), 1)
+
+  color_pal_breaks <- generate_color_breaks(n)
   
   # Create plot
   # Note: We need to use the column name as a symbol for tidy evaluation
@@ -473,6 +579,8 @@ regenerate_interaction_topos <- function(dub_sub_df, dub_sub_interp, unit,
 regenerate_line_graphs <- function(sig_data_results, band_name) {
   
   cpal <- palette.colors(palette = "Okabe-Ito")
+  plot_colors <- 
+    c("sham" = cpal[1], "tacs" = cpal[2], "trns" = cpal[3], "tdcs" = cpal[4])
   pd <- position_dodge(width = .2)
   
   plots <- map(sig_data_results, function(data) {
@@ -484,7 +592,7 @@ regenerate_line_graphs <- function(sig_data_results, band_name) {
         position = pd
       ) +
       geom_path(position = pd) +
-      scale_color_manual(values = cpal) +
+      scale_color_manual(values = plot_colors) +
       labs(
         x = "Task", 
         y = "Mean PSD",
