@@ -52,13 +52,13 @@ bandwise_analysis <- function(data_file = NULL,
       m = mean(.data[[psd_col]]), n = n(),
       .by = c(ss, session, stim, block, eyes, electrode, task)
       ) %>%
-    mutate(ss = str_extract(ss, "^\\d+(?=_)")) %>% # cleans ss number
     # turns certain cols to factors
     mutate(
       across(.cols = c(eyes, task, stim), .fns = ~factor(.x)),
       eyes = relevel(eyes, ref = "open"), 
       task = relevel(task, ref = "pre"),
-      stim = relevel(stim, ref = "sham")
+      stim = relevel(stim, ref = "sham"),
+      session = as.numeric(session)
     )
   
   # Removing outliers
@@ -75,7 +75,7 @@ bandwise_analysis <- function(data_file = NULL,
   # replaces outliers with NA
   ss_r <- ss %>% mutate(m = if_else(between(m, lower, upper), m, NA)) 
   ss_dropped <- ss_r %>% filter(is.na(m))
-    
+  
   # linear mixed modeling ----
   cat("Performing linear-mixed modeling...\n")
   

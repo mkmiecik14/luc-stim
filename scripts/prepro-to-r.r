@@ -13,7 +13,7 @@ source("fns/extract_spectral_data.R")
 
 # Configuration ----
 CONFIG <- list(
-  stim_table_file = Sys.getenv("STIM_TABLE_FILE", "doc/ss-info.xlsx"),
+  stim_table_file = "doc/stimulus-conditions.xlsx",
   stim_table_sheet = "stimtable",
   spectral_dir = "output/spectral",
   spectral_pattern = "*spectral.mat",
@@ -32,16 +32,11 @@ load_stimulation_table <- function(file_path, sheet_name) {
   
   cat("Loading stimulation table from:", file_path, "\n")
   read_excel(file_path, sheet = sheet_name) %>%
-    select(ss, session, stim_type, stim_version) %>%
     mutate(
-      stim_type = case_when(
-        stim_type == 1 ~ "tdcs", 
-        stim_type == 3 ~ "tacs", 
-        stim_type == 4 ~ "trns"
-      ),
-      stim = if_else(stim_version == "B", "sham", stim_type),
       stim = factor(stim), 
-      stim = relevel(stim, ref = "sham")
+      stim = relevel(stim, ref = "sham"),
+      ss = as.character(ss),
+      session = as.character(session)
     )
 }
 
@@ -102,7 +97,13 @@ organize_and_save_data <- function(res, data_vars, stim_table, output_dir) {
       org_data <- res %>%
         map(.x) %>%
         list_rbind(names_to = "ss") %>%
-        left_join(stim_table, by = "ss")
+        rename(ss_old = ss) %>%
+        mutate(
+          ss = str_extract(ss_old, "^[^_]+"),
+          session = str_extract(ss_old, "\\d+$")
+        ) %>%
+        select(-ss_old) %>%
+        left_join(stim_table, join_by(ss, session))
       
       output_file <- file.path(output_dir, paste0(.x, ".rds"))
       write_rds(org_data, output_file)
