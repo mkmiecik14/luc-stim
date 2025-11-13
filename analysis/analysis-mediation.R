@@ -21,7 +21,7 @@
 
 
 # libraries ----
-library(tidyverse); library(lme4); library(lmerTest)
+library(tidyverse); library(lme4); library(mediation)
 
 # custom functions ----
 source("fns/load_eeg_data_into_R.R")
@@ -41,14 +41,29 @@ bands <- list(
 )
 
 # function toggles
-psd_col <- "psd_db"
 thresh <- .99
+# you can also make a toggle for the freq band
+# you can also make a toggle for the data set (dB or uV)
 
 # data ----
 
 ## EEG data
 f <- file.path("output", "r-prepro", "psd_db.rds")
 psd_data <- load_eeg_data_into_R(data_file = f, refresh = FALSE)
+
+# Determine which PSD column is available ----
+psd_cols <- c("psd_db", "psd_uv")
+available_cols <- psd_cols[psd_cols %in% names(psd_data)]
+
+if (length(available_cols) == 0) {
+  stop("No PSD column found! Expected either 'psd_db' or 'psd_uv'")
+} else if (length(available_cols) > 1) {
+  stop("Multiple PSD columns found: ", paste(available_cols, collapse = ", "),
+       ". Please ensure only one PSD column is present.")
+}
+
+psd_col <- available_cols[1]
+cat("Using PSD column:", psd_col, "\n")
 
 psd_data2 <-
   psd_data %>%
@@ -57,7 +72,6 @@ psd_data2 <-
     m = mean(.data[[psd_col]]), n = n(),
     .by = c(ss, session, stim, block, eyes, electrode, task)
   ) %>%
-  mutate(ss = str_extract(ss, "^\\d+(?=_)")) %>% # cleans ss number
   # turns certain cols to factors
   mutate(
     across(.cols = c(eyes, task, stim), .fns = ~factor(.x)),
@@ -72,7 +86,7 @@ psd_data2 <-
 if (thresh == 1) {
   cat("Outlier exclusion not performed...\n")
 } else{
-  cat(sprintf("Outliers outside of %.0f%% threshold are excluded...\n", thresh*100))
+  cat(sprintf("Outliers outside of %.0f%% threshold will be excluded...\n", thresh*100))
 }
 tail <- ( 1- thresh ) / 2
 lower <- quantile(psd_data2$m, tail, na.rm = TRUE)
@@ -84,6 +98,7 @@ ss_r <- psd_data2 %>% mutate(m = if_else(between(m, lower, upper), m, NA))
 ss_dropped <- ss_r %>% filter(is.na(m))
 
 # ss_r is the EEG data!
+
 
 
 ## AUT data
@@ -129,55 +144,85 @@ ff_dvs <- c(
 aut_data2 <- warp_to_eeg(data = aut_data, dv_cols = aut_dvs)
 ff_data2 <- warp_to_eeg(data = ff_data, dv_cols = ff_dvs)
 
-# MIGHT NOT NEED THIS BLOCK AS I AM TRYING TO JOIN ALL THE DATA
-# # Calculating change in PSD from pre- to post-stim
-# delta_psd <- 
-#   ss_r %>% 
-#   summarise(
-#     M = mean(m), N = n(), .by = c(ss, session, stim, eyes, electrode, task)
-#     ) %>%
-#   pivot_wider(
-#     id_cols = c(ss, session, stim, eyes, electrode), 
-#     names_from = task, 
-#     values_from = M
-#     ) %>%
-#   mutate(delta = post - pre)
-# 
-# # joins 
-# delta_psd %>% 
-#   left_join(
-#     ., aut_data2, join_by(ss, session, stim), relationship = "many-to-many"
-#     )
+# Calculating change in PSD from pre- to post-stim
+delta_psd <-
+  ss_r %>%
+  summarise(
+    M = mean(m), N = n(), .by = c(ss, session, stim, eyes, electrode, task)
+    ) %>%
+  pivot_wider(
+    id_cols = c(ss, session, stim, eyes, electrode),
+    names_from = task,
+    values_from = M
+    ) %>%
+  mutate(delta = post - pre)
 
-# looks like we have an issue with condition key between behavior and EEG
-eeg_cond <- ss_r %>% select(ss, session, stim) %>% distinct() %>% rename(EEG = stim)
-aut_cond <- aut_data2 %>% select(ss, session, stim) %>% distinct() %>% rename(AUT = stim)
-ff_cond <- ff_data2 %>% select(ss, session, stim) %>% distinct() %>% rename(FF = stim)
+# aggregates aut data
+aut_data2_sum <- 
+  aut_data2 %>% 
+  summarise(
+    across(
+      .cols = all_of(c("rt", aut_dvs)), 
+      .fns = list(m = ~mean(.x, na.rm = TRUE))
+      ), 
+    resps = n(), # calculates number of responses
+    .by = c(ss, session, stim)
+    )
 
-cond_check <- 
-  reduce(list(eeg_cond, aut_cond, ff_cond), full_join, join_by(ss, session)) %>%
-  mutate(all_equal = (EEG == AUT & AUT == FF))
-# writing this out for Bob to double check:
-write_csv(cond_check, file = file.path("output", "r-analysis", "stim-cond-check.csv"))
+# links all data together
+all_data <- left_join(delta_psd, aut_data2_sum, join_by(ss, session, stim)) 
+
+mediation_analysis <- function(data, this_elec, this_eyes, this_y){
   
-
-# trying to join all the data!
-mod_data <- 
-  full_join(
-    aut_data2, ss_r, join_by(ss, session, stim), relationship = "many-to-many"
+  cat(sprintf("Requested %s %s %s \n", this_elec, this_eyes, this_y))
+  
+  # constructs data
+  cat("Slimming dataset ... \n")
+  this_mod_data <- 
+    data %>% 
+    filter(electrode %in% this_elec, eyes %in% this_eyes) %>%
+    dplyr::select(ss, session, stim, eyes, electrode, delta, Y = all_of(this_y))
+  
+  # linear mixed models
+  cat("Linear mixed modeling ... \n")
+  med_mod <- lmer(delta ~ 1 + session + stim + (1 | ss), data = this_mod_data)
+  out_mod <- lmer(Y ~ 1 + session + stim + delta + (1 | ss), data = this_mod_data)
+  
+  # preallocates
+  stims <- c("tacs", "trns", "tdcs") 
+  med_res_list <- as.list(set_names(stims))
+  
+  # calculates mediation model for each stim condition vs. sham
+  cat("Mediation modeling ... \n")
+  med_res <- 
+    med_res_list %>% 
+    map(
+      ~mediate(
+        med_mod, out_mod, 
+        treat = "stim", mediator = "delta",
+        control.value = "sham",    # Explicitly specify control
+        treat.value = .x,          # Explicitly specify treatment
+        sims = 1000
+      )
     )
+  
+  # gathering results into list
+  res_list <- list(
+    elec = this_elec,
+    eyes = this_eyes,
+    Y = this_y,
+    mediation_results = med_res
+  )
+  return(res_list)
+}
 
-# Step 1: Mixed model for mediator (alpha change ~ stim)
-mod_data_nest <- mod_data %>% nest_by(eyes, electrode) %>% filter(complete.cases(.))
-mod_data %>% filter(is.na(electrode)) %>% pull(ss) -> ss_miss
+# determine a way to loop through
+test <- mediation_analysis(data = all_data, "Fp1", "open", "rt_m")
 
-mods <- 
-  mod_data_nest %>% 
-  mutate(
-    med_model = list(lmer(m ~ 1 + session + block + stim*task + (1 | ss), data = data))
-    )
 
-mod_data %>% filter(!complete.cases(.))
+
+
+
 
 
 
@@ -213,20 +258,3 @@ mod <- lmer(
 )
 summary(mod)
   
-
-
-# Proc ---- 
-library(mediation)
-library(lme4)
-
-# Step 1: Mixed model for mediator
-med_model <- lmer(M ~ X + covariates + (1|subject_id), data = df)
-
-# Step 2: Mixed model for outcome
-out_model <- lmer(Y ~ X + M + covariates + (1|subject_id), data = df)
-
-# Step 3: Mediation analysis
-med_results <- mediate(med_model, out_model,
-                       treat = "X", mediator = "M",
-                       boot = TRUE, sims = 1000,
-                       cluster = "subject_id")  # Cluster-robust bootstrap
