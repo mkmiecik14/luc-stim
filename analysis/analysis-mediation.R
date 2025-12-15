@@ -67,7 +67,7 @@ psd_data <- load_eeg_data_into_R(data_file = f, refresh = FALSE)
 
 # analysis ----
 
-for (i in aut_dvs[1]) {
+for (i in aut_dvs[2]) {
   
   # AUT MEDIATION ANALYSIS
   aut_med_res <- 
